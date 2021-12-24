@@ -42,7 +42,7 @@ fn install_rustc() {
     // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
     let mut curl_process_child = Command::new("curl")
         .arg("--proto")
-        .arg("'=https'")
+        .arg("=https")
         .arg("--tlsv1.2")
         .arg("-sSf")
         .arg("https://sh.rustup.rs")
