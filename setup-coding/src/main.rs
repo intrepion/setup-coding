@@ -172,9 +172,34 @@ fn install_docker() {
 
         check_process_status("downloaded gpg file", gpg_process);
 
+        // dpkg --print-architecture
+        let dpkg_process_child = Command::new("dpkg")
+            .arg("--print-architecture")
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let dpkg_process_child_stdout = dpkg_process_child.wait_with_output().unwrap();
+
+        let architecture_name = String::from_utf8(dpkg_process_child_stdout.stdout).unwrap();
+
+        // lsb_release -cs
+        let lsb_release_process_child = Command::new("lsb_release")
+            .arg("-cs")
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let lsb_release_process_child_stdout =
+            lsb_release_process_child.wait_with_output().unwrap();
+
+        let release_name = String::from_utf8(lsb_release_process_child_stdout.stdout).unwrap();
+
+        let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {} stable", architecture_name, release_name);
+
         // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
         let mut echo_process_child = Command::new("echo")
-            .arg("deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable")
+            .arg(echo_argument)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -198,7 +223,7 @@ fn install_docker() {
                 .arg("containerd.io")
                 .spawn();
 
-            check_process_status("installed tool: brave", apt_install_process);
+            check_process_status("installed tool: docker", apt_install_process);
         }
     }
 }
