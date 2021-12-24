@@ -30,10 +30,19 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
 
 fn install_rustc() {
     println!("\ninstalling tool: rustc");
-    // curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs
+    // sudo apt install curl
+    let apt_install_dependencies_process = Command::new("sudo")
+        .arg("apt")
+        .arg("install")
+        .arg("curl")
+        .spawn();
+
+    check_process_status("installed dependencies", apt_install_dependencies_process);
+
+    // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
     let mut curl_process_child = Command::new("curl")
         .arg("--proto")
-        .arg("=https")
+        .arg("'=https'")
         .arg("--tlsv1.2")
         .arg("-sSf")
         .arg("https://sh.rustup.rs")
