@@ -182,7 +182,7 @@ fn install_docker() {
         let dpkg_process_child_stdout = dpkg_process_child.wait_with_output().unwrap();
 
         let architecture_name = String::from_utf8(dpkg_process_child_stdout.stdout).unwrap();
-        
+
         // lsb_release -cs
         let lsb_release_process_child = Command::new("lsb_release")
             .arg("-cs")
@@ -190,10 +190,11 @@ fn install_docker() {
             .spawn()
             .unwrap();
 
-        let lsb_release_process_child_stdout = lsb_release_process_child.wait_with_output().unwrap();
+        let lsb_release_process_child_stdout =
+            lsb_release_process_child.wait_with_output().unwrap();
 
         let release_name = String::from_utf8(lsb_release_process_child_stdout.stdout).unwrap();
-    
+
         let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {} stable", architecture_name, release_name);
 
         // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
