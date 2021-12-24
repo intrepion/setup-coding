@@ -1,5 +1,5 @@
 use std::io::Error;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 
 fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     match process {
@@ -28,9 +28,31 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
+fn install_rustc() {
+    println!("\ninstalling tool: rustc");
+    let mut curl_process_child = Command::new("curl")
+        .arg("--proto")
+        .arg("=https")
+        .arg("--tlsv1.2")
+        .arg("-sSf")
+        .arg("https://sh.rustup.rs")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    
+    if let Some(curl_process) = curl_process_child.stdout.take() {
+        let sh_process = Command::new("sh")
+            .stdin(curl_process)
+            .spawn();
+
+        check_process_status("installed tool: rustc", sh_process);
+    }
+}
+
 fn install_git() {
     println!("\ninstalling tool: git");
-    let process = Command::new("apt")
+    let process = Command::new("sudo")
+        .arg("apt")
         .arg("install")
         .arg("git-all")
         .spawn();
@@ -59,6 +81,9 @@ fn update_system() {
 
 fn main() {
     update_system();
+    if !can_find_tool("rustc") {
+        install_rustc();
+    }
     if !can_find_tool("git") {
         install_git();
     }
