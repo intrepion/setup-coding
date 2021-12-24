@@ -1,4 +1,7 @@
+use std::fs::File;
+use std::io::prelude::*;
 use std::io::Error;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
 fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
@@ -39,25 +42,46 @@ fn install_rustc() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    
+
     if let Some(curl_process) = curl_process_child.stdout.take() {
-        let sh_process = Command::new("sh")
-            .stdin(curl_process)
-            .spawn();
+        let sh_process = Command::new("sh").stdin(curl_process).spawn();
 
         check_process_status("installed tool: rustc", sh_process);
     }
 }
 
-fn install_git() {
-    println!("\ninstalling tool: git");
+fn install_code() {
+    println!("\ninstalling tool: code");
     let process = Command::new("sudo")
-        .arg("apt")
+        .arg("snap")
         .arg("install")
-        .arg("git-all")
+        .arg("code")
+        .arg("--classic")
         .spawn();
-    
-    check_process_status("installed tool: git", process);
+
+    check_process_status("installed tool: code", process);
+}
+
+fn install_firefox() {
+    println!("\ninstalling tool: firefox");
+    let process = Command::new("sudo")
+        .arg("snap")
+        .arg("install")
+        .arg("firefox")
+        .spawn();
+
+    check_process_status("installed tool: firefox", process);
+}
+
+fn install_docker() {
+    println!("\ninstalling tool: docker");
+    let process = Command::new("sudo")
+        .arg("snap")
+        .arg("install")
+        .arg("docker")
+        .spawn();
+
+    check_process_status("installed tool: docker", process);
 }
 
 fn can_find_tool(tool_name: &str) -> bool {
@@ -71,10 +95,7 @@ fn can_find_tool(tool_name: &str) -> bool {
 
 fn update_system() {
     println!("\nupdating system");
-    let process = Command::new("sudo")
-        .arg("apt-get")
-        .arg("update")
-        .spawn();
+    let process = Command::new("sudo").arg("apt-get").arg("update").spawn();
 
     check_process_status("system updated", process);
 }
@@ -84,12 +105,15 @@ fn main() {
     if !can_find_tool("rustc") {
         install_rustc();
     }
-    if !can_find_tool("git") {
-        install_git();
+    if !can_find_tool("code") {
+        install_code();
     }
-    can_find_tool("code");
+    if !can_find_tool("firefox") {
+        install_firefox();
+    }
+    if !can_find_tool("docker") {
+        install_docker();
+    }
     can_find_tool("google-chrome");
-    can_find_tool("firefox");
-    can_find_tool("docker");
     can_find_tool("docker-compose");
 }
