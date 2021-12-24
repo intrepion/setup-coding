@@ -47,7 +47,18 @@ fn can_find_tool(tool_name: &str) -> bool {
     check_process_status(&message, process)
 }
 
+fn update_system() {
+    println!("\nupdating system");
+    let process = Command::new("sudo")
+        .arg("apt-get")
+        .arg("update")
+        .spawn();
+
+    check_process_status("system updated", process);
+}
+
 fn main() {
+    update_system();
     if !can_find_tool("git") {
         install_git();
     }
