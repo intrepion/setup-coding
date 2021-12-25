@@ -1,6 +1,15 @@
 use std::io::Error;
 use std::process::{Child, Command, Stdio};
 
+fn can_find_tool(tool_name: &str) -> bool {
+    println!("\nchecking for tool: {}", tool_name);
+    let process = Command::new(tool_name).arg("--version").spawn();
+
+    let message = format!("found tool: {}", tool_name);
+
+    check_process_status(&message, process)
+}
+
 fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     match process {
         Err(error) => {
@@ -26,61 +35,6 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
             }
         }
     }
-}
-
-fn install_rustc() {
-    println!("\ninstalling tool: rustc");
-    // sudo apt install curl
-    let apt_install_dependencies_process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("curl")
-        .spawn();
-
-    check_process_status("installed dependencies", apt_install_dependencies_process);
-
-    // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
-    let mut curl_process_child = Command::new("curl")
-        .arg("--proto")
-        .arg("=https")
-        .arg("--tlsv1.2")
-        .arg("-sSf")
-        .arg("https://sh.rustup.rs")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    if let Some(curl_process) = curl_process_child.stdout.take() {
-        // | sh
-        let sh_process = Command::new("sh").stdin(curl_process).spawn();
-
-        check_process_status("installed tool: rustc", sh_process);
-    }
-}
-
-fn install_git() {
-    println!("\ninstalling tool: git");
-    // sudo apt install git-all
-    let process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("git-all")
-        .spawn();
-
-    check_process_status("installed tool: git", process);
-}
-
-fn install_code() {
-    println!("\ninstalling tool: code");
-    // sudo snap install code --classic
-    let process = Command::new("sudo")
-        .arg("snap")
-        .arg("install")
-        .arg("code")
-        .arg("--classic")
-        .spawn();
-
-    check_process_status("installed tool: code", process);
 }
 
 fn install_brave_browser() {
@@ -136,6 +90,19 @@ fn install_brave_browser() {
 
         check_process_status("installed tool: brave-browser", apt_install_process);
     }
+}
+
+fn install_code() {
+    println!("\ninstalling tool: code");
+    // sudo snap install code --classic
+    let process = Command::new("sudo")
+        .arg("snap")
+        .arg("install")
+        .arg("code")
+        .arg("--classic")
+        .spawn();
+
+    check_process_status("installed tool: code", process);
 }
 
 fn install_docker() {
@@ -232,13 +199,65 @@ fn install_docker() {
     }
 }
 
-fn can_find_tool(tool_name: &str) -> bool {
-    println!("\nchecking for tool: {}", tool_name);
-    let process = Command::new(tool_name).arg("--version").spawn();
+fn install_git() {
+    println!("\ninstalling tool: git");
+    // sudo apt install git-all
+    let process = Command::new("sudo")
+        .arg("apt")
+        .arg("install")
+        .arg("git-all")
+        .spawn();
 
-    let message = format!("found tool: {}", tool_name);
+    check_process_status("installed tool: git", process);
+}
 
-    check_process_status(&message, process)
+fn install_rustc() {
+    println!("\ninstalling tool: rustc");
+    // sudo apt install curl
+    let apt_install_dependencies_process = Command::new("sudo")
+        .arg("apt")
+        .arg("install")
+        .arg("curl")
+        .spawn();
+
+    check_process_status("installed dependencies", apt_install_dependencies_process);
+
+    // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
+    let mut curl_process_child = Command::new("curl")
+        .arg("--proto")
+        .arg("=https")
+        .arg("--tlsv1.2")
+        .arg("-sSf")
+        .arg("https://sh.rustup.rs")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    if let Some(curl_process) = curl_process_child.stdout.take() {
+        // | sh
+        let sh_process = Command::new("sh").stdin(curl_process).spawn();
+
+        check_process_status("installed tool: rustc", sh_process);
+    }
+}
+
+fn main() {
+    update_system();
+    if !can_find_tool("brave-browser") {
+        install_brave_browser();
+    }
+    if !can_find_tool("code") {
+        install_code();
+    }
+    if !can_find_tool("docker") {
+        install_docker();
+    }
+    if !can_find_tool("git") {
+        install_git();
+    }
+    if !can_find_tool("rustc") {
+        install_rustc();
+    }
 }
 
 fn update_system() {
@@ -246,23 +265,4 @@ fn update_system() {
     let process = Command::new("sudo").arg("apt-get").arg("update").spawn();
 
     check_process_status("system updated", process);
-}
-
-fn main() {
-    update_system();
-    if !can_find_tool("rustc") {
-        install_rustc();
-    }
-    if !can_find_tool("git") {
-        install_git();
-    }
-    if !can_find_tool("code") {
-        install_code();
-    }
-    if !can_find_tool("brave-browser") {
-        install_brave_browser();
-    }
-    if !can_find_tool("docker") {
-        install_docker();
-    }
 }
