@@ -1,5 +1,29 @@
+use std::fs;
 use std::io::Error;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+
+fn can_find_folder(folder_name: &str) -> bool {
+    println!("\nchecking for folder: {}", folder_name);
+
+    let path_buf_folder_name = PathBuf::from("./src");
+    let canonicalized_folder_name = fs::canonicalize(&path_buf_folder_name).unwrap();
+
+    let is_dir = Path::new(&canonicalized_folder_name).is_dir();
+
+    match is_dir {
+        false => {
+            println!("\nfolder not found");
+
+            false
+        }
+        true => {
+            println!("\nfolder found");
+
+            true
+        }
+    }
+}
 
 fn can_find_tool(tool_name: &str) -> bool {
     println!("\nchecking for tool: {}", tool_name);
@@ -37,8 +61,13 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
+fn generate_new_ssh_key() {
+    println!("\ngenerating new ssh key");
+}
+
 fn install_brave_browser() {
     println!("\ninstalling tool: brave-browser");
+
     // sudo apt install apt-transport-https curl
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
@@ -94,6 +123,7 @@ fn install_brave_browser() {
 
 fn install_code() {
     println!("\ninstalling tool: code");
+
     // sudo snap install code --classic
     let process = Command::new("sudo")
         .arg("snap")
@@ -107,6 +137,7 @@ fn install_code() {
 
 fn install_docker() {
     println!("\ninstalling tool: docker");
+
     // sudo apt-get install ca-certificates curl gnupg lsb-release
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
@@ -201,6 +232,7 @@ fn install_docker() {
 
 fn install_git() {
     println!("\ninstalling tool: git");
+
     // sudo apt install git-all
     let process = Command::new("sudo")
         .arg("apt")
@@ -213,6 +245,7 @@ fn install_git() {
 
 fn install_rustc() {
     println!("\ninstalling tool: rustc");
+
     // sudo apt install curl
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
@@ -257,6 +290,9 @@ fn main() {
     }
     if !can_find_tool("rustc") {
         install_rustc();
+    }
+    if !can_find_folder("~/.ssh") {
+        generate_new_ssh_key();
     }
 }
 
