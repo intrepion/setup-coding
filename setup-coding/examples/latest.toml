@@ -1,0 +1,13 @@
+[keys.ssh]
+algorithm = "ed25519"
+email = "your_email@example.com"
+
+[setups]
+update = true
+
+[tools]
+brave_browser = "latest"
+code = "latest"
+docker = "latest"
+git = "latest"
+rustc = "latest"

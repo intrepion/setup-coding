@@ -1,7 +1,41 @@
+use serde_derive::Deserialize;
+use std::env;
 use std::fs;
 use std::io::Error;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+
+#[derive(Deserialize)]
+struct TargetEnvironment {
+    keys: Option<Keys>,
+    setups: Option<Setups>,
+    tools: Option<Tools>,
+}
+
+#[derive(Deserialize)]
+struct Keys {
+    ssh: Option<Ssh>,
+}
+
+#[derive(Deserialize)]
+struct Setups {
+    update: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct Ssh {
+    algorithm: String,
+    email: String,
+}
+
+#[derive(Deserialize)]
+struct Tools {
+    brave_browser: Option<String>,
+    code: Option<String>,
+    docker: Option<String>,
+    git: Option<String>,
+    rustc: Option<String>,
+}
 
 fn can_find_folder(folder_name: &str) -> bool {
     println!("\nchecking for folder: {}", folder_name);
@@ -61,8 +95,23 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
-fn generate_new_ssh_key() {
+fn generate_new_ssh_key(algorithm: String, email: String) {
     println!("\ngenerating new ssh key");
+
+    // ssh-keygen -t ed25519 -C "your_email@example.com"
+    let ssh_keygen_process = Command::new("ssh-keygen")
+        .arg("-t")
+        .arg(algorithm)
+        .arg("-C")
+        .arg(email)
+        .spawn();
+
+    check_process_status("generated ssh key", ssh_keygen_process);
+
+    // eval "$(ssh-agent -s)"
+    let eval_process = Command::new("eval").arg("$(ssh-agent -s)").spawn();
+
+    check_process_status("started the ssh agent", eval_process);
 }
 
 fn install_brave_browser() {
@@ -275,24 +324,90 @@ fn install_rustc() {
 }
 
 fn main() {
-    update_system();
-    if !can_find_tool("brave-browser") {
-        install_brave_browser();
-    }
-    if !can_find_tool("code") {
-        install_code();
-    }
-    if !can_find_tool("docker") {
-        install_docker();
-    }
-    if !can_find_tool("git") {
-        install_git();
-    }
-    if !can_find_tool("rustc") {
-        install_rustc();
-    }
-    if !can_find_folder("~/.ssh") {
-        generate_new_ssh_key();
+    let args: Vec<String> = env::args().collect();
+    let args_has_two_values = args.len() == 2;
+    match args_has_two_values {
+        false => {
+            println!("usage: ./setup-coding <filename>");
+        }
+        true => {
+            let filename = &args[1];
+
+            match fs::read_to_string(filename) {
+                Err(error) => println!("{}: {}", filename, error),
+                Ok(contents) => {
+                    let target_environment: TargetEnvironment = toml::from_str(&contents).unwrap();
+
+                    match target_environment.setups {
+                        None => {}
+                        Some(setups) => match setups.update {
+                            None => {}
+                            Some(update) => {
+                                if update {
+                                    update_system();
+                                }
+                            }
+                        },
+                    }
+                    match target_environment.tools {
+                        None => {}
+                        Some(tools) => {
+                            match tools.brave_browser {
+                                None => {}
+                                Some(_brave_browser) => {
+                                    if !can_find_tool("brave-browser") {
+                                        install_brave_browser();
+                                    }
+                                }
+                            }
+                            match tools.code {
+                                None => {}
+                                Some(_code) => {
+                                    if !can_find_tool("code") {
+                                        install_code();
+                                    }
+                                }
+                            }
+                            match tools.docker {
+                                None => {}
+                                Some(_docker) => {
+                                    if !can_find_tool("docker") {
+                                        install_docker();
+                                    }
+                                }
+                            }
+                            match tools.git {
+                                None => {}
+                                Some(_git) => {
+                                    if !can_find_tool("git") {
+                                        install_git();
+                                    }
+                                }
+                            }
+                            match tools.rustc {
+                                None => {}
+                                Some(_rustc) => {
+                                    if !can_find_tool("rustc") {
+                                        install_rustc();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    match target_environment.keys {
+                        None => {}
+                        Some(keys) => match keys.ssh {
+                            None => {}
+                            Some(ssh) => {
+                                if !can_find_folder("~/.ssh") {
+                                    generate_new_ssh_key(ssh.algorithm, ssh.email);
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+        }
     }
 }
 
