@@ -112,6 +112,13 @@ fn generate_new_ssh_key(algorithm: String, email: String) {
     let eval_process = Command::new("eval").arg("$(ssh-agent -s)").spawn();
 
     check_process_status("started the ssh agent", eval_process);
+
+    let ssh_directory = format!("~/.ssh/{}", algorithm);
+
+    // sh-add ~/.ssh/id_rsa
+    let ssh_add_process = Command::new("ssh-add").arg(ssh_directory).spawn();
+
+    check_process_status("added to the ssh agent", ssh_add_process);
 }
 
 fn install_brave_browser() {
