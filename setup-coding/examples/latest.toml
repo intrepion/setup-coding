@@ -9,5 +9,6 @@ update = true
 brave_browser = "latest"
 code = "latest"
 docker = "latest"
+gh = "latest"
 git = "latest"
 rustc = "latest"

@@ -33,6 +33,7 @@ struct Tools {
     brave_browser: Option<String>,
     code: Option<String>,
     docker: Option<String>,
+    gh: Option<String>,
     git: Option<String>,
     rustc: Option<String>,
 }
@@ -101,7 +102,7 @@ fn generate_new_ssh_key(algorithm: String, email: String) {
     // ssh-keygen -t ed25519 -C "your_email@example.com"
     let ssh_keygen_process = Command::new("ssh-keygen")
         .arg("-t")
-        .arg(algorithm)
+        .arg(&algorithm)
         .arg("-C")
         .arg(email)
         .spawn();
@@ -286,6 +287,76 @@ fn install_docker() {
     }
 }
 
+fn install_gh() {
+    println!("\ninstalling tool: gh");
+
+    // curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    let mut curl_process_child = Command::new("curl")
+        .arg("-fsSL")
+        .arg("https://cli.github.com/packages/githubcli-archive-keyring.gpg")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    if let Some(curl_process) = curl_process_child.stdout.take() {
+        // | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        let dd_process = Command::new("sudo")
+            .arg("dd")
+            .arg("of=/usr/share/keyrings/githubcli-archive-keyring.gpg")
+            .stdin(curl_process)
+            .spawn();
+
+        check_process_status("downloading gpg file", dd_process);
+
+        // dpkg --print-architecture
+        let dpkg_process_child = Command::new("dpkg")
+            .arg("--print-architecture")
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let dpkg_process_child_stdout = dpkg_process_child.wait_with_output().unwrap();
+
+        let architecture_name = String::from_utf8(dpkg_process_child_stdout.stdout).unwrap();
+
+        let trimmed_architecture_name = architecture_name.trim();
+
+        let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main", trimmed_architecture_name);
+
+        // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        let mut echo_process_child = Command::new("echo")
+            .arg(echo_argument)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        if let Some(echo_process) = echo_process_child.stdout.take() {
+            // | sudo tee /etc/apt/sources.list.d/github-cli.list
+            let tee_process = Command::new("sudo")
+                .arg("tee")
+                .arg("/etc/apt/sources.list.d/github-cli.list")
+                .stdin(echo_process)
+                .spawn();
+
+            check_process_status("creating repository source file", tee_process);
+
+            // sudo apt update
+            let apt_update_process = Command::new("sudo").arg("apt").arg("update").spawn();
+
+            check_process_status("updating system", apt_update_process);
+
+            // sudo apt install gh
+            let apt_install_process = Command::new("sudo")
+                .arg("apt")
+                .arg("install")
+                .arg("gh")
+                .spawn();
+
+            check_process_status("installed tool: gh", apt_install_process);
+        }
+    }
+}
+
 fn install_git() {
     println!("\ninstalling tool: git");
 
@@ -380,6 +451,14 @@ fn main() {
                                 Some(_docker) => {
                                     if !can_find_tool("docker") {
                                         install_docker();
+                                    }
+                                }
+                            }
+                            match tools.gh {
+                                None => {}
+                                Some(_gh) => {
+                                    if !can_find_tool("gh") {
+                                        install_gh();
                                     }
                                 }
                             }
