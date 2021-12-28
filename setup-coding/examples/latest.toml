@@ -1,6 +1,7 @@
 [keys.ssh]
 algorithm = "ed25519"
 email = "your_email@example.com"
+title = ""
 
 [setups]
 update = true

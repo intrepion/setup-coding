@@ -26,6 +26,7 @@ struct Setups {
 struct Ssh {
     algorithm: String,
     email: String,
+    title: String,
 }
 
 #[derive(Deserialize)]
@@ -96,7 +97,7 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
-fn generate_new_ssh_key(algorithm: String, email: String) {
+fn generate_new_ssh_key(algorithm: String, email: String, title: String) {
     println!("\ngenerating new ssh key");
 
     // ssh-keygen -t ed25519 -C "your_email@example.com"
@@ -116,10 +117,21 @@ fn generate_new_ssh_key(algorithm: String, email: String) {
 
     let ssh_directory = format!("~/.ssh/{}", algorithm);
 
-    // sh-add ~/.ssh/id_rsa
-    let ssh_add_process = Command::new("ssh-add").arg(ssh_directory).spawn();
+    // sh-add ~/.ssh/id_ed25519
+    let ssh_add_process = Command::new("ssh-add").arg(&ssh_directory).spawn();
 
     check_process_status("added to the ssh agent", ssh_add_process);
+
+    // gh ssh-key add ~/.ssh/id_ed25519.pub --title "personal laptop"
+    let gh_process = Command::new("gh")
+        .arg("ssh-key")
+        .arg("add")
+        .arg(ssh_directory)
+        .arg("--title")
+        .arg(title)
+        .spawn();
+
+    check_process_status("added ssh key to github", gh_process);
 }
 
 fn install_brave_browser() {
@@ -486,7 +498,7 @@ fn main() {
                             None => {}
                             Some(ssh) => {
                                 if !can_find_folder("~/.ssh") {
-                                    generate_new_ssh_key(ssh.algorithm, ssh.email);
+                                    generate_new_ssh_key(ssh.algorithm, ssh.email, ssh.title);
                                 }
                             }
                         },
