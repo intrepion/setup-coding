@@ -1,5 +1,74 @@
+use serde_derive::Deserialize;
+use std::env;
+use std::fs;
 use std::io::Error;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+
+#[derive(Deserialize)]
+struct TargetEnvironment {
+    keys: Option<Keys>,
+    setups: Option<Setups>,
+    tools: Option<Tools>,
+}
+
+#[derive(Deserialize)]
+struct Keys {
+    ssh: Option<Ssh>,
+}
+
+#[derive(Deserialize)]
+struct Setups {
+    update: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct Ssh {
+    algorithm: String,
+    email: String,
+    title: String,
+}
+
+#[derive(Deserialize)]
+struct Tools {
+    brave_browser: Option<String>,
+    code: Option<String>,
+    docker: Option<String>,
+    gh: Option<String>,
+    git: Option<String>,
+    rustc: Option<String>,
+}
+
+fn can_find_folder(folder_name: &str) -> bool {
+    println!("\nchecking for folder: {}", folder_name);
+
+    let path_buf_folder_name = PathBuf::from("./src");
+    let canonicalized_folder_name = fs::canonicalize(&path_buf_folder_name).unwrap();
+
+    let is_dir = Path::new(&canonicalized_folder_name).is_dir();
+
+    match is_dir {
+        false => {
+            println!("\nfolder not found");
+
+            false
+        }
+        true => {
+            println!("\nfolder found");
+
+            true
+        }
+    }
+}
+
+fn can_find_tool(tool_name: &str) -> bool {
+    println!("\nchecking for tool: {}", tool_name);
+    let process = Command::new(tool_name).arg("--version").spawn();
+
+    let message = format!("found tool: {}", tool_name);
+
+    check_process_status(&message, process)
+}
 
 fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     match process {
@@ -28,63 +97,46 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
-fn install_rustc() {
-    println!("\ninstalling tool: rustc");
-    // sudo apt install curl
-    let apt_install_dependencies_process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("curl")
+fn generate_new_ssh_key(algorithm: String, email: String, title: String) {
+    println!("\ngenerating new ssh key");
+
+    // ssh-keygen -t ed25519 -C "your_email@example.com"
+    let ssh_keygen_process = Command::new("ssh-keygen")
+        .arg("-t")
+        .arg(&algorithm)
+        .arg("-C")
+        .arg(email)
         .spawn();
 
-    check_process_status("installed dependencies", apt_install_dependencies_process);
+    check_process_status("generated ssh key", ssh_keygen_process);
 
-    // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
-    let mut curl_process_child = Command::new("curl")
-        .arg("--proto")
-        .arg("=https")
-        .arg("--tlsv1.2")
-        .arg("-sSf")
-        .arg("https://sh.rustup.rs")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+    // eval "$(ssh-agent -s)"
+    let eval_process = Command::new("eval").arg("$(ssh-agent -s)").spawn();
 
-    if let Some(curl_process) = curl_process_child.stdout.take() {
-        // | sh
-        let sh_process = Command::new("sh").stdin(curl_process).spawn();
+    check_process_status("started the ssh agent", eval_process);
 
-        check_process_status("installed tool: rustc", sh_process);
-    }
-}
+    let ssh_directory = format!("~/.ssh/{}", algorithm);
 
-fn install_git() {
-    println!("\ninstalling tool: git");
-    // sudo apt install git-all
-    let process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("git-all")
+    // sh-add ~/.ssh/id_ed25519
+    let ssh_add_process = Command::new("ssh-add").arg(&ssh_directory).spawn();
+
+    check_process_status("added to the ssh agent", ssh_add_process);
+
+    // gh ssh-key add ~/.ssh/id_ed25519.pub --title "personal laptop"
+    let gh_process = Command::new("gh")
+        .arg("ssh-key")
+        .arg("add")
+        .arg(ssh_directory)
+        .arg("--title")
+        .arg(title)
         .spawn();
 
-    check_process_status("installed tool: git", process);
-}
-
-fn install_code() {
-    println!("\ninstalling tool: code");
-    // sudo snap install code --classic
-    let process = Command::new("sudo")
-        .arg("snap")
-        .arg("install")
-        .arg("code")
-        .arg("--classic")
-        .spawn();
-
-    check_process_status("installed tool: code", process);
+    check_process_status("added ssh key to github", gh_process);
 }
 
 fn install_brave_browser() {
     println!("\ninstalling tool: brave-browser");
+
     // sudo apt install apt-transport-https curl
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
@@ -138,8 +190,23 @@ fn install_brave_browser() {
     }
 }
 
+fn install_code() {
+    println!("\ninstalling tool: code");
+
+    // sudo snap install code --classic
+    let process = Command::new("sudo")
+        .arg("snap")
+        .arg("install")
+        .arg("code")
+        .arg("--classic")
+        .spawn();
+
+    check_process_status("installed tool: code", process);
+}
+
 fn install_docker() {
     println!("\ninstalling tool: docker");
+
     // sudo apt-get install ca-certificates curl gnupg lsb-release
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
@@ -232,13 +299,214 @@ fn install_docker() {
     }
 }
 
-fn can_find_tool(tool_name: &str) -> bool {
-    println!("\nchecking for tool: {}", tool_name);
-    let process = Command::new(tool_name).arg("--version").spawn();
+fn install_gh() {
+    println!("\ninstalling tool: gh");
 
-    let message = format!("found tool: {}", tool_name);
+    // curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    let mut curl_process_child = Command::new("curl")
+        .arg("-fsSL")
+        .arg("https://cli.github.com/packages/githubcli-archive-keyring.gpg")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
 
-    check_process_status(&message, process)
+    if let Some(curl_process) = curl_process_child.stdout.take() {
+        // | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        let dd_process = Command::new("sudo")
+            .arg("dd")
+            .arg("of=/usr/share/keyrings/githubcli-archive-keyring.gpg")
+            .stdin(curl_process)
+            .spawn();
+
+        check_process_status("downloading gpg file", dd_process);
+
+        // dpkg --print-architecture
+        let dpkg_process_child = Command::new("dpkg")
+            .arg("--print-architecture")
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let dpkg_process_child_stdout = dpkg_process_child.wait_with_output().unwrap();
+
+        let architecture_name = String::from_utf8(dpkg_process_child_stdout.stdout).unwrap();
+
+        let trimmed_architecture_name = architecture_name.trim();
+
+        let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main", trimmed_architecture_name);
+
+        // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        let mut echo_process_child = Command::new("echo")
+            .arg(echo_argument)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        if let Some(echo_process) = echo_process_child.stdout.take() {
+            // | sudo tee /etc/apt/sources.list.d/github-cli.list
+            let tee_process = Command::new("sudo")
+                .arg("tee")
+                .arg("/etc/apt/sources.list.d/github-cli.list")
+                .stdin(echo_process)
+                .spawn();
+
+            check_process_status("creating repository source file", tee_process);
+
+            // sudo apt update
+            let apt_update_process = Command::new("sudo").arg("apt").arg("update").spawn();
+
+            check_process_status("updating system", apt_update_process);
+
+            // sudo apt install gh
+            let apt_install_process = Command::new("sudo")
+                .arg("apt")
+                .arg("install")
+                .arg("gh")
+                .spawn();
+
+            check_process_status("installed tool: gh", apt_install_process);
+        }
+    }
+}
+
+fn install_git() {
+    println!("\ninstalling tool: git");
+
+    // sudo apt install git-all
+    let process = Command::new("sudo")
+        .arg("apt")
+        .arg("install")
+        .arg("git-all")
+        .spawn();
+
+    check_process_status("installed tool: git", process);
+}
+
+fn install_rustc() {
+    println!("\ninstalling tool: rustc");
+
+    // sudo apt install curl
+    let apt_install_dependencies_process = Command::new("sudo")
+        .arg("apt")
+        .arg("install")
+        .arg("curl")
+        .spawn();
+
+    check_process_status("installed dependencies", apt_install_dependencies_process);
+
+    // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
+    let mut curl_process_child = Command::new("curl")
+        .arg("--proto")
+        .arg("=https")
+        .arg("--tlsv1.2")
+        .arg("-sSf")
+        .arg("https://sh.rustup.rs")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    if let Some(curl_process) = curl_process_child.stdout.take() {
+        // | sh
+        let sh_process = Command::new("sh").stdin(curl_process).spawn();
+
+        check_process_status("installed tool: rustc", sh_process);
+    }
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let args_has_two_values = args.len() == 2;
+    match args_has_two_values {
+        false => {
+            println!("usage: ./setup-coding <filename>");
+        }
+        true => {
+            let filename = &args[1];
+
+            match fs::read_to_string(filename) {
+                Err(error) => println!("{}: {}", filename, error),
+                Ok(contents) => {
+                    let target_environment: TargetEnvironment = toml::from_str(&contents).unwrap();
+
+                    match target_environment.setups {
+                        None => {}
+                        Some(setups) => match setups.update {
+                            None => {}
+                            Some(update) => {
+                                if update {
+                                    update_system();
+                                }
+                            }
+                        },
+                    }
+                    match target_environment.tools {
+                        None => {}
+                        Some(tools) => {
+                            match tools.brave_browser {
+                                None => {}
+                                Some(_brave_browser) => {
+                                    if !can_find_tool("brave-browser") {
+                                        install_brave_browser();
+                                    }
+                                }
+                            }
+                            match tools.code {
+                                None => {}
+                                Some(_code) => {
+                                    if !can_find_tool("code") {
+                                        install_code();
+                                    }
+                                }
+                            }
+                            match tools.docker {
+                                None => {}
+                                Some(_docker) => {
+                                    if !can_find_tool("docker") {
+                                        install_docker();
+                                    }
+                                }
+                            }
+                            match tools.gh {
+                                None => {}
+                                Some(_gh) => {
+                                    if !can_find_tool("gh") {
+                                        install_gh();
+                                    }
+                                }
+                            }
+                            match tools.git {
+                                None => {}
+                                Some(_git) => {
+                                    if !can_find_tool("git") {
+                                        install_git();
+                                    }
+                                }
+                            }
+                            match tools.rustc {
+                                None => {}
+                                Some(_rustc) => {
+                                    if !can_find_tool("rustc") {
+                                        install_rustc();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    match target_environment.keys {
+                        None => {}
+                        Some(keys) => match keys.ssh {
+                            None => {}
+                            Some(ssh) => {
+                                if !can_find_folder("~/.ssh") {
+                                    generate_new_ssh_key(ssh.algorithm, ssh.email, ssh.title);
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn update_system() {
@@ -246,23 +514,4 @@ fn update_system() {
     let process = Command::new("sudo").arg("apt-get").arg("update").spawn();
 
     check_process_status("system updated", process);
-}
-
-fn main() {
-    update_system();
-    if !can_find_tool("rustc") {
-        install_rustc();
-    }
-    if !can_find_tool("git") {
-        install_git();
-    }
-    if !can_find_tool("code") {
-        install_code();
-    }
-    if !can_find_tool("brave-browser") {
-        install_brave_browser();
-    }
-    if !can_find_tool("docker") {
-        install_docker();
-    }
 }
