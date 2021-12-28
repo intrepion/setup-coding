@@ -492,6 +492,17 @@ fn install_gh() {
                                                         "installed tool: gh",
                                                         apt_install_process,
                                                     );
+
+                                                    // gh auth login
+                                                    let gh_process = Command::new("gh")
+                                                        .arg("auth")
+                                                        .arg("login")
+                                                        .spawn();
+                                                    
+                                                    check_process_status(
+                                                        "logged into gh",
+                                                        gh_process
+                                                    );
                                                 }
                                             }
                                         }
