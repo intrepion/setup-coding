@@ -498,10 +498,10 @@ fn install_gh() {
                                                         .arg("auth")
                                                         .arg("login")
                                                         .spawn();
-                                                    
+
                                                     check_process_status(
                                                         "logged into gh",
-                                                        gh_process
+                                                        gh_process,
                                                     );
                                                 }
                                             }
