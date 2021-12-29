@@ -144,6 +144,41 @@ fn generate_new_ssh_key(algorithm: String, email: String, title: String) {
     check_process_status("added ssh key to github", gh_process);
 }
 
+fn get_architecture_name() -> Result<String, Error> {
+    println!("\ngetting architecture name");
+
+    // dpkg --print-architecture
+    let dpkg_process_child_result = Command::new("dpkg")
+        .arg("--print-architecture")
+        .stdout(Stdio::piped())
+        .spawn();
+
+    match dpkg_process_child_result {
+        Err(error) => Error(format!("error when trying to dpkg: {}", error)),
+        Ok(dpkg_process_child) => {
+            let dpkg_process_child_stdout_result =
+                dpkg_process_child.wait_with_output();
+
+            match dpkg_process_child_stdout_result {
+                Err(error) => Error(format("error when trying to dpkg: {}", error)),
+                Ok(dpkg_process_child_stdout) => {
+                    let architecture_name_result =
+                        String::from_utf8(dpkg_process_child_stdout.stdout);
+
+                    match architecture_name_result {
+                        Err(error) => Error(format!("error when trying to convert string from dpkg output: {}", error)),
+                        Ok(architecture_name) => Ok(architecture_name.trim())
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn get_release_name() {
+    println!("\ngetting release name");
+}
+
 fn install_brave_browser() {
     println!("\ninstalling tool: brave-browser");
 
