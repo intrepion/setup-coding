@@ -3,8 +3,9 @@ algorithm = "ed25519"
 email = "your_email@example.com"
 title = ""
 
-[setups]
-update = true
+[updates]
+dependencies = true
+system = true
 
 [tools]
 brave_browser = "latest"
