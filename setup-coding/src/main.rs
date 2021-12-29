@@ -156,8 +156,7 @@ fn get_architecture_name() -> Result<String, Error> {
     match dpkg_process_child_result {
         Err(error) => Error(format!("error when trying to dpkg: {}", error)),
         Ok(dpkg_process_child) => {
-            let dpkg_process_child_stdout_result =
-                dpkg_process_child.wait_with_output();
+            let dpkg_process_child_stdout_result = dpkg_process_child.wait_with_output();
 
             match dpkg_process_child_stdout_result {
                 Err(error) => Error(format("error when trying to dpkg: {}", error)),
@@ -166,8 +165,11 @@ fn get_architecture_name() -> Result<String, Error> {
                         String::from_utf8(dpkg_process_child_stdout.stdout);
 
                     match architecture_name_result {
-                        Err(error) => Error(format!("error when trying to convert string from dpkg output: {}", error)),
-                        Ok(architecture_name) => Ok(architecture_name.trim())
+                        Err(error) => Error(format!(
+                            "error when trying to convert string from dpkg output: {}",
+                            error
+                        )),
+                        Ok(architecture_name) => Ok(architecture_name.trim()),
                     }
                 }
             }
@@ -581,6 +583,7 @@ fn install_rustc() {
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
         .arg("install")
+        .arg("build-essentials")
         .arg("curl")
         .spawn();
 
