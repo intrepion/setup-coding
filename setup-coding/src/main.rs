@@ -7,20 +7,20 @@ use std::process::{Child, Command, Output, Stdio};
 use std::string::FromUtf8Error;
 
 #[derive(Deserialize)]
+struct DockerCompose {
+    version: String,
+}
+
+#[derive(Deserialize)]
 struct TargetEnvironment {
     keys: Option<Keys>,
-    setups: Option<Setups>,
     tools: Option<Tools>,
+    updates: Option<Updates>,
 }
 
 #[derive(Deserialize)]
 struct Keys {
     ssh: Option<Ssh>,
-}
-
-#[derive(Deserialize)]
-struct Setups {
-    update: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -42,8 +42,9 @@ struct Tools {
 }
 
 #[derive(Deserialize)]
-struct DockerCompose {
-    version: String,
+struct Updates {
+    dependencies: Option<bool>,
+    system: Option<bool>,
 }
 
 fn can_find_folder(folder_name: &str) -> bool {
@@ -113,7 +114,23 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
-fn generate_new_ssh_key(algorithm: String, email: String, title: String) {
+fn convert_output_to_string(process_child_stdout: Output) -> Result<String, FromUtf8Error> {
+    let architecture_name_result = String::from_utf8(process_child_stdout.stdout);
+
+    match architecture_name_result {
+        Err(error) => {
+            println!(
+                "error when trying to convert string from dpkg output: {}",
+                error
+            );
+
+            Err(error)
+        }
+        Ok(architecture_name) => Ok(architecture_name.trim().to_string()),
+    }
+}
+
+fn generate_new_ssh_key(algorithm: &str, email: &str, title: &str) {
     println!("\ngenerating new ssh key");
 
     // ssh-keygen -t ed25519 -C "your_email@example.com"
@@ -180,38 +197,39 @@ fn get_architecture_name_output() -> Result<Output, Error> {
     }
 }
 
-fn convert_output_to_string(process_child_stdout: Output) -> Result<String, FromUtf8Error> {
-    let architecture_name_result = String::from_utf8(process_child_stdout.stdout);
+fn get_release_name_output() -> Result<Output, Error> {
+    println!("\ngetting release name");
 
-    match architecture_name_result {
+    // lsb_release -cs
+    let lsb_release_process_child_result = Command::new("lsb_release")
+        .arg("-cs")
+        .stdout(Stdio::piped())
+        .spawn();
+
+    match lsb_release_process_child_result {
         Err(error) => {
-            println!(
-                "error when trying to convert string from dpkg output: {}",
-                error
-            );
+            println!("error when trying to lsb_release: {}", error);
 
             Err(error)
         }
-        Ok(architecture_name) => Ok(architecture_name.trim().to_string()),
-    }
-}
+        Ok(lsb_release_process_child) => {
+            let lsb_release_process_child_stdout_result =
+                lsb_release_process_child.wait_with_output();
 
-fn get_release_name() {
-    println!("\ngetting release name");
+            match lsb_release_process_child_stdout_result {
+                Err(error) => {
+                    println!("error when trying to get output of lsb_release: {}", error);
+
+                    Err(error)
+                }
+                Ok(lsb_release_process_child_stdout) => Ok(lsb_release_process_child_stdout),
+            }
+        }
+    }
 }
 
 fn install_brave_browser() {
     println!("\ninstalling tool: brave-browser");
-
-    // sudo apt install apt-transport-https curl
-    let apt_install_dependencies_process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("apt-transport-https")
-        .arg("curl")
-        .spawn();
-
-    check_process_status("installed dependencies", apt_install_dependencies_process);
 
     // sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
     let apt_curl_process = Command::new("sudo")
@@ -276,20 +294,8 @@ fn install_code() {
     check_process_status("installed tool: code", process);
 }
 
-fn install_docker(architecture_name: String) {
+fn install_docker(architecture_name: &str, release_name: &str) {
     println!("\ninstalling tool: docker");
-
-    // sudo apt-get install ca-certificates curl gnupg lsb-release
-    let apt_install_dependencies_process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("ca-certificates")
-        .arg("curl")
-        .arg("gnupg")
-        .arg("lsb-release")
-        .spawn();
-
-    check_process_status("installed dependencies", apt_install_dependencies_process);
 
     // curl -fsSL https://download.docker.com/linux/ubuntu/gpg
     let curl_process_child_result = Command::new("curl")
@@ -315,85 +321,39 @@ fn install_docker(architecture_name: String) {
 
                 check_process_status("downloaded gpg file", gpg_process);
 
-                // lsb_release -cs
-                let lsb_release_process_child_result = Command::new("lsb_release")
-                    .arg("-cs")
+                let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {} stable", architecture_name, release_name);
+
+                // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                let echo_process_child_result = Command::new("echo")
+                    .arg(echo_argument)
                     .stdout(Stdio::piped())
                     .spawn();
 
-                match lsb_release_process_child_result {
+                match echo_process_child_result {
                     Err(error) => {
-                        println!("error when trying to lsb_release: {}", error);
+                        println!("error when processing echo: {}", error);
                     }
-                    Ok(lsb_release_process_child) => {
-                        let lsb_release_process_child_stdout_result =
-                            lsb_release_process_child.wait_with_output();
+                    Ok(mut echo_process_child) => {
+                        if let Some(echo_process) = echo_process_child.stdout.take() {
+                            // | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                            let tee_process = Command::new("sudo")
+                                .arg("tee")
+                                .arg("/etc/apt/sources.list.d/docker.list")
+                                .stdin(echo_process)
+                                .spawn();
 
-                        match lsb_release_process_child_stdout_result {
-                            Err(error) => {
-                                println!(
-                                    "error when trying to get output of lsb_release: {}",
-                                    error
-                                );
-                            }
-                            Ok(lsb_release_process_child_stdout) => {
-                                let release_name_result =
-                                    String::from_utf8(lsb_release_process_child_stdout.stdout);
+                            check_process_status("writing to sources file", tee_process);
 
-                                match release_name_result {
-                                    Err(error) => {
-                                        println!("error when trying to get string from lsb_release output: {}", error);
-                                    }
-                                    Ok(release_name) => {
-                                        let trimmed_release_name = release_name.trim();
+                            // sudo apt-get install docker-ce docker-ce-cli containerd.io
+                            let apt_install_process = Command::new("sudo")
+                                .arg("apt-get")
+                                .arg("install")
+                                .arg("docker-ce")
+                                .arg("docker-ce-cli")
+                                .arg("containerd.io")
+                                .spawn();
 
-                                        let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {} stable", architecture_name, trimmed_release_name);
-
-                                        // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-                                        let echo_process_child_result = Command::new("echo")
-                                            .arg(echo_argument)
-                                            .stdout(Stdio::piped())
-                                            .spawn();
-
-                                        match echo_process_child_result {
-                                            Err(error) => {
-                                                println!("error when processing echo: {}", error);
-                                            }
-                                            Ok(mut echo_process_child) => {
-                                                if let Some(echo_process) =
-                                                    echo_process_child.stdout.take()
-                                                {
-                                                    // | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-                                                    let tee_process = Command::new("sudo")
-                                                        .arg("tee")
-                                                        .arg("/etc/apt/sources.list.d/docker.list")
-                                                        .stdin(echo_process)
-                                                        .spawn();
-
-                                                    check_process_status(
-                                                        "writing to sources file",
-                                                        tee_process,
-                                                    );
-
-                                                    // sudo apt-get install docker-ce docker-ce-cli containerd.io
-                                                    let apt_install_process = Command::new("sudo")
-                                                        .arg("apt-get")
-                                                        .arg("install")
-                                                        .arg("docker-ce")
-                                                        .arg("docker-ce-cli")
-                                                        .arg("containerd.io")
-                                                        .spawn();
-
-                                                    check_process_status(
-                                                        "installed tool: docker",
-                                                        apt_install_process,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            check_process_status("installed tool: docker", apt_install_process);
                         }
                     }
                 }
@@ -402,7 +362,7 @@ fn install_docker(architecture_name: String) {
     }
 }
 
-fn install_docker_compose(version: String) {
+fn install_docker_compose(_version: &str) {
     println!("\ninstalling tool: docker-compose");
 
     // sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -410,7 +370,7 @@ fn install_docker_compose(version: String) {
     // sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
 }
 
-fn install_gh() {
+fn install_gh(architecture_name: &str) {
     println!("\ninstalling tool: gh");
 
     // curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg
@@ -435,102 +395,48 @@ fn install_gh() {
 
                 check_process_status("downloading gpg file", dd_process);
 
-                // dpkg --print-architecture
-                let dpkg_process_child_result = Command::new("dpkg")
-                    .arg("--print-architecture")
+                let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main", architecture_name);
+
+                // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+                let echo_process_child_result = Command::new("echo")
+                    .arg(echo_argument)
                     .stdout(Stdio::piped())
                     .spawn();
 
-                match dpkg_process_child_result {
+                match echo_process_child_result {
                     Err(error) => {
-                        println!("error when trying to dpkg: {}", error);
+                        println!("error when trying to echo: {}", error);
                     }
-                    Ok(dpkg_process_child) => {
-                        let dpkg_process_child_stdout_result =
-                            dpkg_process_child.wait_with_output();
+                    Ok(mut echo_process_child) => {
+                        if let Some(echo_process) = echo_process_child.stdout.take() {
+                            // | sudo tee /etc/apt/sources.list.d/github-cli.list
+                            let tee_process = Command::new("sudo")
+                                .arg("tee")
+                                .arg("/etc/apt/sources.list.d/github-cli.list")
+                                .stdin(echo_process)
+                                .spawn();
 
-                        match dpkg_process_child_stdout_result {
-                            Err(error) => {
-                                println!("error when trying to dpkg: {}", error);
-                            }
-                            Ok(dpkg_process_child_stdout) => {
-                                let architecture_name_result =
-                                    String::from_utf8(dpkg_process_child_stdout.stdout);
+                            check_process_status("creating repository source file", tee_process);
 
-                                match architecture_name_result {
-                                    Err(error) => {
-                                        println!("error when trying to convert string from dpkg output: {}", error);
-                                    }
-                                    Ok(architecture_name) => {
-                                        let trimmed_architecture_name = architecture_name.trim();
+                            // sudo apt update
+                            let apt_update_process =
+                                Command::new("sudo").arg("apt").arg("update").spawn();
 
-                                        let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main", trimmed_architecture_name);
+                            check_process_status("updating system", apt_update_process);
 
-                                        // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
-                                        let echo_process_child_result = Command::new("echo")
-                                            .arg(echo_argument)
-                                            .stdout(Stdio::piped())
-                                            .spawn();
+                            // sudo apt install gh
+                            let apt_install_process = Command::new("sudo")
+                                .arg("apt")
+                                .arg("install")
+                                .arg("gh")
+                                .spawn();
 
-                                        match echo_process_child_result {
-                                            Err(error) => {
-                                                println!("error when trying to echo: {}", error);
-                                            }
-                                            Ok(mut echo_process_child) => {
-                                                if let Some(echo_process) =
-                                                    echo_process_child.stdout.take()
-                                                {
-                                                    // | sudo tee /etc/apt/sources.list.d/github-cli.list
-                                                    let tee_process = Command::new("sudo")
-                                                        .arg("tee")
-                                                        .arg("/etc/apt/sources.list.d/github-cli.list")
-                                                        .stdin(echo_process)
-                                                        .spawn();
+                            check_process_status("installed tool: gh", apt_install_process);
 
-                                                    check_process_status(
-                                                        "creating repository source file",
-                                                        tee_process,
-                                                    );
+                            // gh auth login
+                            let gh_process = Command::new("gh").arg("auth").arg("login").spawn();
 
-                                                    // sudo apt update
-                                                    let apt_update_process = Command::new("sudo")
-                                                        .arg("apt")
-                                                        .arg("update")
-                                                        .spawn();
-
-                                                    check_process_status(
-                                                        "updating system",
-                                                        apt_update_process,
-                                                    );
-
-                                                    // sudo apt install gh
-                                                    let apt_install_process = Command::new("sudo")
-                                                        .arg("apt")
-                                                        .arg("install")
-                                                        .arg("gh")
-                                                        .spawn();
-
-                                                    check_process_status(
-                                                        "installed tool: gh",
-                                                        apt_install_process,
-                                                    );
-
-                                                    // gh auth login
-                                                    let gh_process = Command::new("gh")
-                                                        .arg("auth")
-                                                        .arg("login")
-                                                        .spawn();
-
-                                                    check_process_status(
-                                                        "logged into gh",
-                                                        gh_process,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            check_process_status("logged into gh", gh_process);
                         }
                     }
                 }
@@ -554,16 +460,6 @@ fn install_git() {
 
 fn install_rustc() {
     println!("\ninstalling tool: rustc");
-
-    // sudo apt install curl
-    let apt_install_dependencies_process = Command::new("sudo")
-        .arg("apt")
-        .arg("install")
-        .arg("build-essentials")
-        .arg("curl")
-        .spawn();
-
-    check_process_status("installed dependencies", apt_install_dependencies_process);
 
     // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
     let curl_process_child_result = Command::new("curl")
@@ -600,121 +496,170 @@ fn main() {
         true => {
             let filename = &args[1];
 
+            println!("reading file: {}", filename);
+
             match fs::read_to_string(filename) {
                 Err(error) => println!("{}: {}", filename, error),
                 Ok(contents) => {
-                    let architecture_name_output_result = get_architecture_name_output();
-                    match architecture_name_output_result {
+                    let target_environment_result: Result<TargetEnvironment, toml::de::Error> =
+                        toml::from_str(&contents);
+
+                    match target_environment_result {
                         Err(error) => {
-                            println!("architecture name process output error: {}", error)
+                            println!("error trying to read toml file: {}", error);
                         }
-                        Ok(architecture_name_output) => {
-                            let architecture_name_result =
-                                convert_output_to_string(architecture_name_output);
-
-                            match architecture_name_result {
+                        Ok(target_environment) => {
+                            let architecture_name_output_result = get_architecture_name_output();
+                            match architecture_name_output_result {
                                 Err(error) => {
-                                    println!("FromUtf8Error: {}", error);
+                                    println!("architecture name process output error: {}", error)
                                 }
-                                Ok(architecture_name) => {
-                                    let target_environment_result: Result<
-                                        TargetEnvironment,
-                                        toml::de::Error,
-                                    > = toml::from_str(&contents);
+                                Ok(architecture_name_output) => {
+                                    let architecture_name_result =
+                                        convert_output_to_string(architecture_name_output);
 
-                                    match target_environment_result {
+                                    match architecture_name_result {
                                         Err(error) => {
-                                            println!("error trying to read toml file: {}", error);
+                                            println!("FromUtf8Error: {}", error);
                                         }
-                                        Ok(target_environment) => {
-                                            match target_environment.setups {
-                                                None => {}
-                                                Some(setups) => match setups.update {
-                                                    None => {}
-                                                    Some(update) => {
-                                                        if update {
-                                                            update_system();
+                                        Ok(architecture_name) => {
+                                            let release_name_output_result =
+                                                get_release_name_output();
+                                            match release_name_output_result {
+                                                Err(error) => {
+                                                    println!(
+                                                        "release name process output error: {}",
+                                                        error
+                                                    )
+                                                }
+                                                Ok(release_name_output) => {
+                                                    let release_name_result =
+                                                        convert_output_to_string(
+                                                            release_name_output,
+                                                        );
+
+                                                    match release_name_result {
+                                                        Err(error) => {
+                                                            println!("FromUtf8Error: {}", error);
                                                         }
-                                                    }
-                                                },
-                                            }
-                                            match target_environment.tools {
-                                                None => {}
-                                                Some(tools) => {
-                                                    match tools.brave_browser {
-                                                        None => {}
-                                                        Some(_brave_browser) => {
-                                                            if !can_find_tool("brave-browser") {
-                                                                install_brave_browser();
+                                                        Ok(release_name) => {
+                                                            match target_environment.updates {
+                                                                None => {}
+                                                                Some(updates) => {
+                                                                    match updates.system {
+                                                                        None => {}
+                                                                        Some(system) => {
+                                                                            if system {
+                                                                                update_system();
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match updates.dependencies {
+                                                                        None => {}
+                                                                        Some(dependencies) => {
+                                                                            if dependencies {
+                                                                                update_dependencies(
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
                                                             }
-                                                        }
-                                                    }
-                                                    match tools.code {
-                                                        None => {}
-                                                        Some(_code) => {
-                                                            if !can_find_tool("code") {
-                                                                install_code();
-                                                            }
-                                                        }
-                                                    }
-                                                    match tools.docker {
-                                                        None => {}
-                                                        Some(_docker) => {
-                                                            if !can_find_tool("docker") {
-                                                                install_docker(architecture_name);
-                                                            }
-                                                        }
-                                                    }
-                                                    match tools.docker_compose {
-                                                        None => {}
-                                                        Some(docker_compose) => {
-                                                            if !can_find_tool("docker-compose") {
-                                                                install_docker_compose(
-                                                                    docker_compose.version,
+                                                            match target_environment.tools {
+                                                                None => {}
+                                                                Some(tools) => {
+                                                                    match tools.brave_browser {
+                                                                        None => {}
+                                                                        Some(_brave_browser) => {
+                                                                            if !can_find_tool(
+                                                                                "brave-browser",
+                                                                            ) {
+                                                                                install_brave_browser();
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match tools.code {
+                                                                        None => {}
+                                                                        Some(_code) => {
+                                                                            if !can_find_tool(
+                                                                                "code",
+                                                                            ) {
+                                                                                install_code();
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match tools.docker {
+                                                                        None => {}
+                                                                        Some(_docker) => {
+                                                                            if !can_find_tool(
+                                                                                "docker",
+                                                                            ) {
+                                                                                install_docker(&architecture_name, &release_name);
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match tools.docker_compose {
+                                                                        None => {}
+                                                                        Some(docker_compose) => {
+                                                                            if !can_find_tool(
+                                                                                "docker-compose",
+                                                                            ) {
+                                                                                install_docker_compose(
+                                                                    &docker_compose.version,
                                                                 );
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match tools.gh {
+                                                                        None => {}
+                                                                        Some(_gh) => {
+                                                                            if !can_find_tool("gh")
+                                                                            {
+                                                                                install_gh(&architecture_name);
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match tools.git {
+                                                                        None => {}
+                                                                        Some(_git) => {
+                                                                            if !can_find_tool("git")
+                                                                            {
+                                                                                install_git();
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    match tools.rustc {
+                                                                        None => {}
+                                                                        Some(_rustc) => {
+                                                                            if !can_find_tool(
+                                                                                "rustc",
+                                                                            ) {
+                                                                                install_rustc();
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
                                                             }
-                                                        }
-                                                    }
-                                                    match tools.gh {
-                                                        None => {}
-                                                        Some(_gh) => {
-                                                            if !can_find_tool("gh") {
-                                                                install_gh();
-                                                            }
-                                                        }
-                                                    }
-                                                    match tools.git {
-                                                        None => {}
-                                                        Some(_git) => {
-                                                            if !can_find_tool("git") {
-                                                                install_git();
-                                                            }
-                                                        }
-                                                    }
-                                                    match tools.rustc {
-                                                        None => {}
-                                                        Some(_rustc) => {
-                                                            if !can_find_tool("rustc") {
-                                                                install_rustc();
+                                                            match target_environment.keys {
+                                                                None => {}
+                                                                Some(keys) => match keys.ssh {
+                                                                    None => {}
+                                                                    Some(ssh) => {
+                                                                        if !can_find_folder(
+                                                                            "~/.ssh",
+                                                                        ) {
+                                                                            generate_new_ssh_key(
+                                                                                &ssh.algorithm,
+                                                                                &ssh.email,
+                                                                                &ssh.title,
+                                                                            );
+                                                                        }
+                                                                    }
+                                                                },
                                                             }
                                                         }
                                                     }
                                                 }
-                                            }
-                                            match target_environment.keys {
-                                                None => {}
-                                                Some(keys) => match keys.ssh {
-                                                    None => {}
-                                                    Some(ssh) => {
-                                                        if !can_find_folder("~/.ssh") {
-                                                            generate_new_ssh_key(
-                                                                ssh.algorithm,
-                                                                ssh.email,
-                                                                ssh.title,
-                                                            );
-                                                        }
-                                                    }
-                                                },
                                             }
                                         }
                                     }
@@ -733,4 +678,20 @@ fn update_system() {
     let process = Command::new("sudo").arg("apt-get").arg("update").spawn();
 
     check_process_status("system updated", process);
+}
+
+fn update_dependencies() {
+    // sudo apt install apt-transport-https build-essential ca-certificates curl gnupg lsb-release
+    let apt_install_dependencies_process = Command::new("sudo")
+        .arg("apt")
+        .arg("install")
+        .arg("apt-transport-https")
+        .arg("build-essential")
+        .arg("ca-certificates")
+        .arg("curl")
+        .arg("gnupg")
+        .arg("lsb-release")
+        .spawn();
+
+    check_process_status("installed dependencies", apt_install_dependencies_process);
 }
