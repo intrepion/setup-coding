@@ -1,0 +1,2 @@
+[tools.docker_compose]
+version = "1.29.2"

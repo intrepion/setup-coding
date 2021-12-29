@@ -34,6 +34,7 @@ struct Tools {
     brave_browser: Option<String>,
     code: Option<String>,
     docker: Option<String>,
+    docker_compose: Option<String>,
     gh: Option<String>,
     git: Option<String>,
     rustc: Option<String>,
@@ -388,6 +389,14 @@ fn install_docker() {
     }
 }
 
+fn install_docker_compose(version: String) {
+    println!("\ninstalling tool: docker-compose");
+
+    // sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    // sudo chmod +x /usr/local/bin/docker-compose
+    // sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+}
+
 fn install_gh() {
     println!("\ninstalling tool: gh");
 
@@ -623,6 +632,14 @@ fn main() {
                                         Some(_docker) => {
                                             if !can_find_tool("docker") {
                                                 install_docker();
+                                            }
+                                        }
+                                    }
+                                    match tools.docker_compose {
+                                        None => {}
+                                        Some(docker_compose) => {
+                                            if !can_find_tool("docker-compose") {
+                                                install_docker_compose(docker_compose.version);
                                             }
                                         }
                                     }
