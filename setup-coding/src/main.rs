@@ -197,6 +197,66 @@ fn get_architecture_name_output() -> Result<Output, Error> {
     }
 }
 
+fn get_kernel_name_output() -> Result<Output, Error> {
+    println!("\ngetting kernel name");
+
+    // uname -s
+    let uname_process_child_result = Command::new("uname")
+        .arg("-s")
+        .stdout(Stdio::piped())
+        .spawn();
+
+    match uname_process_child_result {
+        Err(error) => {
+            println!("error when trying to uname: {}", error);
+
+            Err(error)
+        }
+        Ok(uname_process_child) => {
+            let uname_process_child_stdout_result = uname_process_child.wait_with_output();
+
+            match uname_process_child_stdout_result {
+                Err(error) => {
+                    println!("error when trying to get output of uname: {}", error);
+
+                    Err(error)
+                }
+                Ok(uname_process_child_stdout_result) => Ok(uname_process_child_stdout_result),
+            }
+        }
+    }
+}
+
+fn get_machine_hardware_name_output() -> Result<Output, Error> {
+    println!("\ngetting machine hardware name");
+
+    // uname -s
+    let uname_process_child_result = Command::new("uname")
+        .arg("-m")
+        .stdout(Stdio::piped())
+        .spawn();
+
+    match uname_process_child_result {
+        Err(error) => {
+            println!("error when trying to uname: {}", error);
+
+            Err(error)
+        }
+        Ok(uname_process_child) => {
+            let uname_process_child_stdout_result = uname_process_child.wait_with_output();
+
+            match uname_process_child_stdout_result {
+                Err(error) => {
+                    println!("error when trying to get output of uname: {}", error);
+
+                    Err(error)
+                }
+                Ok(uname_process_child_stdout_result) => Ok(uname_process_child_stdout_result),
+            }
+        }
+    }
+}
+
 fn get_release_name_output() -> Result<Output, Error> {
     println!("\ngetting release name");
 
@@ -362,7 +422,7 @@ fn install_docker(architecture_name: &str, release_name: &str) {
     }
 }
 
-fn install_docker_compose(_version: &str) {
+fn install_docker_compose(_version: &str, _kernel_name: &str, _machine_hardware_name: &str) {
     println!("\ninstalling tool: docker-compose");
 
     // sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -508,154 +568,199 @@ fn main() {
                         Err(error) => {
                             println!("error trying to read toml file: {}", error);
                         }
-                        Ok(target_environment) => {
-                            let architecture_name_output_result = get_architecture_name_output();
-                            match architecture_name_output_result {
-                                Err(error) => {
-                                    println!("architecture name process output error: {}", error)
-                                }
-                                Ok(architecture_name_output) => {
-                                    let architecture_name_result =
-                                        convert_output_to_string(architecture_name_output);
-
-                                    match architecture_name_result {
-                                        Err(error) => {
-                                            println!("FromUtf8Error: {}", error);
+                        Ok(target_environment) => match target_environment.updates {
+                            None => {}
+                            Some(updates) => {
+                                match updates.system {
+                                    None => {}
+                                    Some(system) => {
+                                        if system {
+                                            update_system();
                                         }
-                                        Ok(architecture_name) => {
-                                            let release_name_output_result =
-                                                get_release_name_output();
-                                            match release_name_output_result {
-                                                Err(error) => {
-                                                    println!(
-                                                        "release name process output error: {}",
-                                                        error
-                                                    )
-                                                }
-                                                Ok(release_name_output) => {
-                                                    let release_name_result =
-                                                        convert_output_to_string(
-                                                            release_name_output,
-                                                        );
+                                    }
+                                }
+                                match updates.dependencies {
+                                    None => {}
+                                    Some(dependencies) => {
+                                        if dependencies {
+                                            update_dependencies();
+                                        }
+                                    }
+                                }
 
-                                                    match release_name_result {
-                                                        Err(error) => {
-                                                            println!("FromUtf8Error: {}", error);
-                                                        }
-                                                        Ok(release_name) => {
-                                                            match target_environment.updates {
-                                                                None => {}
-                                                                Some(updates) => {
-                                                                    match updates.system {
-                                                                        None => {}
-                                                                        Some(system) => {
-                                                                            if system {
-                                                                                update_system();
-                                                                            }
-                                                                        }
+                                let architecture_name_output_result =
+                                    get_architecture_name_output();
+                                match architecture_name_output_result {
+                                    Err(error) => {
+                                        println!(
+                                            "architecture name process output error: {}",
+                                            error
+                                        )
+                                    }
+                                    Ok(architecture_name_output) => {
+                                        let architecture_name_result =
+                                            convert_output_to_string(architecture_name_output);
+
+                                        match architecture_name_result {
+                                            Err(error) => {
+                                                println!(
+                                                    "architecture name FromUtf8Error: {}",
+                                                    error
+                                                );
+                                            }
+                                            Ok(architecture_name) => {
+                                                let release_name_output_result =
+                                                    get_release_name_output();
+                                                match release_name_output_result {
+                                                    Err(error) => {
+                                                        println!(
+                                                            "release name process output error: {}",
+                                                            error
+                                                        )
+                                                    }
+                                                    Ok(release_name_output) => {
+                                                        let release_name_result =
+                                                            convert_output_to_string(
+                                                                release_name_output,
+                                                            );
+
+                                                        match release_name_result {
+                                                            Err(error) => {
+                                                                println!(
+                                                                        "release name FromUtf8Error: {}",
+                                                                        error
+                                                                    );
+                                                            }
+                                                            Ok(release_name) => {
+                                                                let kernel_name_output_result =
+                                                                    get_kernel_name_output();
+
+                                                                match kernel_name_output_result {
+                                                                    Err(error) => {
+                                                                        println!("kernel name process output error: {}", error);
                                                                     }
-                                                                    match updates.dependencies {
+                                                                    Ok(kernel_name_output) => {
+                                                                        let kernel_name_result = convert_output_to_string(kernel_name_output);
+
+                                                                        match kernel_name_result {
+                                                                            Err(error) => {
+                                                                                println!("kernel name FromUtf8Error: {}", error);
+                                                                            }
+                                                                            Ok(kernel_name) => {
+                                                                                let machine_hardware_name_output_result = get_machine_hardware_name_output();
+
+                                                                                match machine_hardware_name_output_result {
+                                                                                    Err(error) => {
+                                                                                        println!("machine hardware name process output error: {}", error);
+                                                                                    }
+                                                                                    Ok(machine_hardware_name_output) => {
+                                                                                        let machine_hardware_name_result = convert_output_to_string(machine_hardware_name_output);
+
+                                                                                        match machine_hardware_name_result {
+                                                                                            Err(error) => {
+                                                                                                println!("machine hardware name FromUtf8Error: {}", error);
+                                                                                            }
+                                                                                            Ok(machine_hardware_name) => {
+                                                                                match target_environment.tools {
                                                                         None => {}
-                                                                        Some(dependencies) => {
-                                                                            if dependencies {
-                                                                                update_dependencies(
-                                                                                );
+                                                                        Some(tools) => {
+                                                                            match tools.brave_browser {
+                                                                                            None => {}
+                                                                                            Some(_brave_browser) => {
+                                                                                                if !can_find_tool(
+                                                                                                    "brave-browser",
+                                                                                                ) {
+                                                                                                    install_brave_browser();
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                                        match tools.code {
+                                                                                            None => {}
+                                                                                            Some(_code) => {
+                                                                                                if !can_find_tool("code") {
+                                                                                                    install_code();
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                                        match tools.docker {
+                                                                                            None => {}
+                                                                                            Some(_docker) => {
+                                                                                                if !can_find_tool("docker") {
+                                                                                                    install_docker(
+                                                                                                        &architecture_name,
+                                                                                                        &release_name,
+                                                                                                    );
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                                        match tools.docker_compose {
+                                                                                            None => {}
+                                                                                            Some(docker_compose) => {
+                                                                                                if !can_find_tool(
+                                                                                                    "docker-compose",
+                                                                                                ) {
+                                                                                                    install_docker_compose(
+                                                                                                        &docker_compose.version,
+                                                                                                        &kernel_name,
+                                                                                                        &machine_hardware_name,
+                                                                                                    );
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                                        match tools.gh {
+                                                                                            None => {}
+                                                                                            Some(_gh) => {
+                                                                                                if !can_find_tool("gh") {
+                                                                                                    install_gh(
+                                                                                                        &architecture_name,
+                                                                                                    );
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                                        match tools.git {
+                                                                                            None => {}
+                                                                                            Some(_git) => {
+                                                                                                if !can_find_tool("git") {
+                                                                                                    install_git();
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                                        match tools.rustc {
+                                                                                            None => {}
+                                                                                            Some(_rustc) => {
+                                                                                                if !can_find_tool("rustc") {
+                                                                                                    install_rustc();
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                                match target_environment.keys {
+                                                                                                    None => {}
+                                                                                                    Some(keys) => match keys.ssh
+                                                                                                    {
+                                                                                                        None => {}
+                                                                                                        Some(ssh) => {
+                                                                                                            if !can_find_folder(
+                                                                                                                "~/.ssh",
+                                                                                                            ) {
+                                                                                                                generate_new_ssh_key(
+                                                                                                    &ssh.algorithm,
+                                                                                                    &ssh.email,
+                                                                                                    &ssh.title,
+                                                                                                );
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
                                                                             }
                                                                         }
                                                                     }
                                                                 }
-                                                            }
-                                                            match target_environment.tools {
-                                                                None => {}
-                                                                Some(tools) => {
-                                                                    match tools.brave_browser {
-                                                                        None => {}
-                                                                        Some(_brave_browser) => {
-                                                                            if !can_find_tool(
-                                                                                "brave-browser",
-                                                                            ) {
-                                                                                install_brave_browser();
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    match tools.code {
-                                                                        None => {}
-                                                                        Some(_code) => {
-                                                                            if !can_find_tool(
-                                                                                "code",
-                                                                            ) {
-                                                                                install_code();
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    match tools.docker {
-                                                                        None => {}
-                                                                        Some(_docker) => {
-                                                                            if !can_find_tool(
-                                                                                "docker",
-                                                                            ) {
-                                                                                install_docker(&architecture_name, &release_name);
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    match tools.docker_compose {
-                                                                        None => {}
-                                                                        Some(docker_compose) => {
-                                                                            if !can_find_tool(
-                                                                                "docker-compose",
-                                                                            ) {
-                                                                                install_docker_compose(
-                                                                    &docker_compose.version,
-                                                                );
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    match tools.gh {
-                                                                        None => {}
-                                                                        Some(_gh) => {
-                                                                            if !can_find_tool("gh")
-                                                                            {
-                                                                                install_gh(&architecture_name);
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    match tools.git {
-                                                                        None => {}
-                                                                        Some(_git) => {
-                                                                            if !can_find_tool("git")
-                                                                            {
-                                                                                install_git();
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    match tools.rustc {
-                                                                        None => {}
-                                                                        Some(_rustc) => {
-                                                                            if !can_find_tool(
-                                                                                "rustc",
-                                                                            ) {
-                                                                                install_rustc();
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                            match target_environment.keys {
-                                                                None => {}
-                                                                Some(keys) => match keys.ssh {
-                                                                    None => {}
-                                                                    Some(ssh) => {
-                                                                        if !can_find_folder(
-                                                                            "~/.ssh",
-                                                                        ) {
-                                                                            generate_new_ssh_key(
-                                                                                &ssh.algorithm,
-                                                                                &ssh.email,
-                                                                                &ssh.title,
-                                                                            );
-                                                                        }
-                                                                    }
-                                                                },
                                                             }
                                                         }
                                                     }
@@ -665,7 +770,7 @@ fn main() {
                                     }
                                 }
                             }
-                        }
+                        },
                     }
                 }
             }
