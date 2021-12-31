@@ -4,6 +4,7 @@ email = "your_email@example.com"
 title = ""
 
 [updates]
+cleanup = true
 dependencies = true
 system = true
 

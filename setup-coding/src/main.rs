@@ -6,31 +6,31 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::string::FromUtf8Error;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct DockerCompose {
     version: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TargetEnvironment {
     keys: Option<Keys>,
     tools: Option<Tools>,
     updates: Option<Updates>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Keys {
     ssh: Option<Ssh>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Ssh {
     algorithm: String,
     email: String,
     title: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Tools {
     brave_browser: Option<String>,
     code: Option<String>,
@@ -41,8 +41,9 @@ struct Tools {
     rustc: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Updates {
+    cleanup: Option<bool>,
     dependencies: Option<bool>,
     system: Option<bool>,
 }
@@ -422,12 +423,42 @@ fn install_docker(architecture_name: &str, release_name: &str) {
     }
 }
 
-fn install_docker_compose(_version: &str, _kernel_name: &str, _machine_hardware_name: &str) {
+fn install_docker_compose(_version: &str, kernel_name: &str, machine_hardware_name: &str) {
     println!("\ninstalling tool: docker-compose");
 
+    let github_url = format!(
+        "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-{}-{}",
+        kernel_name, machine_hardware_name
+    );
+
     // sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    let curl_process = Command::new("sudo")
+        .arg("curl")
+        .arg("-L")
+        .arg(github_url)
+        .arg("-o")
+        .arg("/usr/local/bin/docker-compose")
+        .spawn();
+
+    check_process_status("downloaded docker-compose from github", curl_process);
+
     // sudo chmod +x /usr/local/bin/docker-compose
+    let chmod_process = Command::new("sudo")
+        .arg("chmod")
+        .arg("+x")
+        .arg("/usr/local/bin/docker-compose")
+        .spawn();
+    check_process_status("chmoded downloaded file", chmod_process);
+
     // sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+    let ln_process = Command::new("sudo")
+        .arg("ln")
+        .arg("-s")
+        .arg("/usr/local/bin/docker-compose")
+        .arg("/usr/bin/docker-compose")
+        .spawn();
+
+    check_process_status("installed tool: docker-compose", ln_process);
 }
 
 fn install_gh(architecture_name: &str) {
@@ -568,88 +599,95 @@ fn main() {
                         Err(error) => {
                             println!("error trying to read toml file: {}", error);
                         }
-                        Ok(target_environment) => match target_environment.updates {
-                            None => {}
-                            Some(updates) => {
-                                match updates.system {
-                                    None => {}
-                                    Some(system) => {
-                                        if system {
-                                            update_system();
-                                        }
-                                    }
-                                }
-                                match updates.dependencies {
-                                    None => {}
-                                    Some(dependencies) => {
-                                        if dependencies {
-                                            update_dependencies();
-                                        }
-                                    }
-                                }
-
-                                let architecture_name_output_result =
-                                    get_architecture_name_output();
-                                match architecture_name_output_result {
-                                    Err(error) => {
-                                        println!(
-                                            "architecture name process output error: {}",
-                                            error
-                                        )
-                                    }
-                                    Ok(architecture_name_output) => {
-                                        let architecture_name_result =
-                                            convert_output_to_string(architecture_name_output);
-
-                                        match architecture_name_result {
-                                            Err(error) => {
-                                                println!(
-                                                    "architecture name FromUtf8Error: {}",
-                                                    error
-                                                );
+                        Ok(target_environment) => {
+                            match target_environment.updates {
+                                None => {}
+                                Some(updates) => {
+                                    match updates.system {
+                                        None => {}
+                                        Some(system) => {
+                                            if system {
+                                                update_system();
                                             }
-                                            Ok(architecture_name) => {
-                                                let release_name_output_result =
-                                                    get_release_name_output();
-                                                match release_name_output_result {
-                                                    Err(error) => {
-                                                        println!(
-                                                            "release name process output error: {}",
-                                                            error
-                                                        )
-                                                    }
-                                                    Ok(release_name_output) => {
-                                                        let release_name_result =
-                                                            convert_output_to_string(
-                                                                release_name_output,
+                                        }
+                                    }
+                                    match updates.dependencies {
+                                        None => {}
+                                        Some(dependencies) => {
+                                            if dependencies {
+                                                update_dependencies();
+                                            }
+                                        }
+                                    }
+                                    match updates.cleanup {
+                                        None => {}
+                                        Some(cleanup) => {
+                                            if cleanup {
+                                                update_cleanup();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            let architecture_name_output_result = get_architecture_name_output();
+                            match architecture_name_output_result {
+                                Err(error) => {
+                                    println!("architecture name process output error: {}", error)
+                                }
+                                Ok(architecture_name_output) => {
+                                    let architecture_name_result =
+                                        convert_output_to_string(architecture_name_output);
+
+                                    match architecture_name_result {
+                                        Err(error) => {
+                                            println!("architecture name FromUtf8Error: {}", error);
+                                        }
+                                        Ok(architecture_name) => {
+                                            let release_name_output_result =
+                                                get_release_name_output();
+                                            match release_name_output_result {
+                                                Err(error) => {
+                                                    println!(
+                                                        "release name process output error: {}",
+                                                        error
+                                                    )
+                                                }
+                                                Ok(release_name_output) => {
+                                                    let release_name_result =
+                                                        convert_output_to_string(
+                                                            release_name_output,
+                                                        );
+
+                                                    match release_name_result {
+                                                        Err(error) => {
+                                                            println!(
+                                                                "release name FromUtf8Error: {}",
+                                                                error
                                                             );
+                                                        }
+                                                        Ok(release_name) => {
+                                                            let kernel_name_output_result =
+                                                                get_kernel_name_output();
 
-                                                        match release_name_result {
-                                                            Err(error) => {
-                                                                println!(
-                                                                        "release name FromUtf8Error: {}",
-                                                                        error
-                                                                    );
-                                                            }
-                                                            Ok(release_name) => {
-                                                                let kernel_name_output_result =
-                                                                    get_kernel_name_output();
+                                                            match kernel_name_output_result {
+                                                                Err(error) => {
+                                                                    println!("kernel name process output error: {}", error);
+                                                                }
+                                                                Ok(kernel_name_output) => {
+                                                                    let kernel_name_result =
+                                                                        convert_output_to_string(
+                                                                            kernel_name_output,
+                                                                        );
 
-                                                                match kernel_name_output_result {
-                                                                    Err(error) => {
-                                                                        println!("kernel name process output error: {}", error);
-                                                                    }
-                                                                    Ok(kernel_name_output) => {
-                                                                        let kernel_name_result = convert_output_to_string(kernel_name_output);
+                                                                    match kernel_name_result {
+                                                                        Err(error) => {
+                                                                            println!("kernel name FromUtf8Error: {}", error);
+                                                                        }
+                                                                        Ok(kernel_name) => {
+                                                                            let machine_hardware_name_output_result = get_machine_hardware_name_output();
 
-                                                                        match kernel_name_result {
-                                                                            Err(error) => {
-                                                                                println!("kernel name FromUtf8Error: {}", error);
-                                                                            }
-                                                                            Ok(kernel_name) => {
-                                                                                let machine_hardware_name_output_result = get_machine_hardware_name_output();
-
-                                                                                match machine_hardware_name_output_result {
+                                                                            match machine_hardware_name_output_result {
                                                                                     Err(error) => {
                                                                                         println!("machine hardware name process output error: {}", error);
                                                                                     }
@@ -661,8 +699,11 @@ fn main() {
                                                                                                 println!("machine hardware name FromUtf8Error: {}", error);
                                                                                             }
                                                                                             Ok(machine_hardware_name) => {
+                                                                                                println!("checking for tools");
                                                                                 match target_environment.tools {
-                                                                        None => {}
+                                                                        None => {
+                                                                            println!("can't find tools");
+                                                                        }
                                                                         Some(tools) => {
                                                                             match tools.brave_browser {
                                                                                             None => {}
@@ -693,8 +734,11 @@ fn main() {
                                                                                                 }
                                                                                             }
                                                                                         }
+                                                                                        println!("is docker_compose a target");
                                                                                                         match tools.docker_compose {
-                                                                                            None => {}
+                                                                                            None => {
+                                                                                                println!("couldn't find target for docker_compose")
+                                                                                            }
                                                                                             Some(docker_compose) => {
                                                                                                 if !can_find_tool(
                                                                                                     "docker-compose",
@@ -753,7 +797,6 @@ fn main() {
                                                                                         }
                                                                                     }
                                                                                 }
-                                                                                            }
                                                                                         }
                                                                                     }
                                                                                 }
@@ -770,7 +813,7 @@ fn main() {
                                     }
                                 }
                             }
-                        },
+                        }
                     }
                 }
             }
@@ -799,4 +842,14 @@ fn update_dependencies() {
         .spawn();
 
     check_process_status("installed dependencies", apt_install_dependencies_process);
+}
+
+fn update_cleanup() {
+    // sudo apt install apt-transport-https build-essential ca-certificates curl gnupg lsb-release
+    let apt_autoremove_process = Command::new("sudo")
+        .arg("apt")
+        .arg("autoremove")
+        .spawn();
+
+    check_process_status("system cleaned up", apt_autoremove_process);
 }
