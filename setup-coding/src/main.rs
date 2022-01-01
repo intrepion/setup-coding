@@ -811,6 +811,7 @@ fn update_dependencies() {
         .arg("ca-certificates")
         .arg("curl")
         .arg("gnupg")
+        .arg("libssl-dev")
         .arg("lsb-release")
         .spawn();
 
