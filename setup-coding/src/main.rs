@@ -1,11 +1,11 @@
 use serde_derive::Deserialize;
 use std::env;
-use std::fs::{canonicalize, read_to_string};
+use std::fs;
 use std::io::Error;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Child, Command, Output, Stdio};
+use std::process;
+use std::process::{Child, Command, Output, Stdio};
 use std::string::FromUtf8Error;
-use toml::from_str;
 
 #[derive(Debug, Deserialize)]
 struct DockerCompose {
@@ -25,6 +25,11 @@ struct Keys {
 }
 
 #[derive(Debug, Deserialize)]
+struct Node {
+    version: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct Ssh {
     algorithm: String,
     email: String,
@@ -39,6 +44,7 @@ struct Tools {
     docker_compose: Option<DockerCompose>,
     gh: Option<String>,
     git: Option<String>,
+    node: Option<Node>,
     rustc: Option<String>,
 }
 
@@ -53,7 +59,7 @@ fn can_find_folder(folder_name: &str) -> bool {
     println!("\nchecking for folder: {}", folder_name);
 
     let path_buf_folder_name = PathBuf::from("./src");
-    let name = canonicalize(&path_buf_folder_name).expect("error trying to check folder");
+    let name = fs::canonicalize(&path_buf_folder_name).expect("error trying to check folder");
 
     Path::new(&name).is_dir()
 }
@@ -528,6 +534,48 @@ fn install_git() {
     check_process_status("installed tool: git", process);
 }
 
+fn install_node(version: &str) {
+    println!("\ninstalling tool: node");
+
+    let package_url = format!("https://deb.nodesource.com/setup_{}.x", version);
+
+    // curl -fsSL https://deb.nodesource.com/setup_17.x
+    let curl_process_child_result = Command::new("curl")
+        .arg("-fsSL")
+        .arg(&package_url)
+        .stdout(Stdio::piped())
+        .spawn();
+
+    match curl_process_child_result {
+        Err(error) => {
+            println!("error trying to curl: {}", error);
+        }
+        Ok(mut curl_process_child) => {
+            if let Some(curl_process) = curl_process_child.stdout.take() {
+                // | sudo -E bash -
+                let bash_process = Command::new("sudo")
+                    .arg("-E")
+                    .arg("bash")
+                    .arg("-")
+                    .stdin(curl_process)
+                    .spawn();
+
+                check_process_status("setup node in repository", bash_process);
+
+                // sudo apt-get install -y nodejs
+                let apt_get_process = Command::new("sudo")
+                    .arg("apt-get")
+                    .arg("install")
+                    .arg("-y")
+                    .arg("nodejs")
+                    .spawn();
+
+                check_process_status("installed tool: node", apt_get_process);
+            }
+        }
+    }
+}
+
 fn install_rustc() {
     println!("\ninstalling tool: rustc");
 
@@ -563,17 +611,17 @@ fn main() {
     if !(args_has_two_values) {
         println!("\nusage: ./setup-coding <filename>");
 
-        exit(1);
+        process::exit(1);
     }
 
     let filename = &args[1];
 
     println!("\nreading file: {}", filename);
 
-    let contents = read_to_string(filename).expect("couldn't read file");
+    let contents = fs::read_to_string(filename).expect("couldn't read file");
 
     let target_environment: TargetEnvironment =
-        from_str(&contents).expect("error trying to convert toml file to string");
+        toml::from_str(&contents).expect("error trying to convert toml file to string");
 
     target_updates(target_environment.updates);
 
@@ -663,11 +711,8 @@ fn target_tools(
                     }
                 }
             }
-            println!("is docker_compose a target");
             match tools.docker_compose {
-                None => {
-                    println!("couldn't find target for docker_compose")
-                }
+                None => {}
                 Some(docker_compose) => {
                     if !can_find_tool("docker-compose") {
                         install_docker_compose(
@@ -691,6 +736,14 @@ fn target_tools(
                 Some(_git) => {
                     if !can_find_tool("git") {
                         install_git();
+                    }
+                }
+            }
+            match tools.node {
+                None => {}
+                Some(node) => {
+                    if !can_find_tool("node") {
+                        install_node(&node.version);
                     }
                 }
             }
