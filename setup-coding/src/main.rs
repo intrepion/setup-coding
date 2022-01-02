@@ -799,6 +799,7 @@ fn update_dependencies() {
         .arg("ca-certificates")
         .arg("curl")
         .arg("gnupg")
+        .arg("libpq-dev")
         .arg("libssl-dev")
         .arg("lsb-release")
         .arg("postgresql-client")
