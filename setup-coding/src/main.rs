@@ -801,6 +801,7 @@ fn update_dependencies() {
         .arg("gnupg")
         .arg("libssl-dev")
         .arg("lsb-release")
+        .arg("postgresql-client")
         .spawn();
 
     check_process_status("installed dependencies", apt_install_dependencies_process);
