@@ -55,15 +55,6 @@ struct Updates {
     system: Option<bool>,
 }
 
-fn can_find_folder(folder_name: &str) -> bool {
-    println!("\nchecking for folder: {}", folder_name);
-
-    let path_buf_folder_name = PathBuf::from("./src");
-    let name = fs::canonicalize(&path_buf_folder_name).expect("error trying to check folder");
-
-    Path::new(&name).is_dir()
-}
-
 fn can_find_tool(tool_name: &str) -> bool {
     println!("\nchecking for tool: {}", tool_name);
     let process = Command::new(tool_name).arg("--version").spawn();
@@ -666,9 +657,7 @@ fn target_keys(keys: Option<Keys>) {
         Some(keys) => match keys.ssh {
             None => {}
             Some(ssh) => {
-                if !can_find_folder("~/.ssh") {
-                    generate_new_ssh_key(&ssh.algorithm, &ssh.email, &ssh.title);
-                }
+                generate_new_ssh_key(&ssh.algorithm, &ssh.email, &ssh.title);
             }
         },
     }
