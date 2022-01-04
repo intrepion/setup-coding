@@ -802,6 +802,7 @@ fn update_dependencies() {
         .arg("libpq-dev")
         .arg("libssl-dev")
         .arg("lsb-release")
+        .arg("musl-tools")
         .arg("postgresql-client")
         .spawn();
 
