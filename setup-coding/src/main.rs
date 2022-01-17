@@ -800,11 +800,17 @@ fn update_dependencies() {
         .arg("clang")
         .arg("curl")
         .arg("gnupg")
+        .arg("libasound2-dev")
         .arg("libpq-dev")
         .arg("libssl-dev")
+        .arg("libudev-dev")
+        .arg("libwayland-dev")
+        .arg("libx11-dev")
+        .arg("libxkbcommon-dev")
         .arg("lld")
         .arg("lsb-release")
         .arg("musl-tools")
+        .arg("pkg-config")
         .arg("postgresql-client")
         .spawn();
 
