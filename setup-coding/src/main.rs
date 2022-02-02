@@ -43,6 +43,7 @@ struct Tools {
     docker_compose: Option<DockerCompose>,
     gh: Option<String>,
     git: Option<String>,
+    google_chrome: Option<String>,
     node: Option<Node>,
     rustc: Option<String>,
 }
@@ -524,6 +525,80 @@ fn install_git() {
     check_process_status("installed tool: git", process);
 }
 
+fn install_google_chrome() {
+    println!("\ninstalling tool: google-chrome");
+
+    // wget -q -O - https://dl.google.com/linux/linux_signing_key.pub
+    let wget_process_child_result = Command::new("wget")
+        .arg("-q")
+        .arg("-O")
+        .arg("-")
+        .arg("https://dl.google.com/linux/linux_signing_key.pub")
+        .stdout(Stdio::piped())
+        .spawn();
+
+    match wget_process_child_result {
+        Err(error) => {
+            println!("error when trying to download: {}", error);
+        }
+        Ok(mut wget_process_child) => {
+            if let Some(wget_process) = wget_process_child.stdout.take() {
+                // | sudo apt-key add -
+                let apt_key_process = Command::new("sudo")
+                    .arg("apt-key")
+                    .arg("add")
+                    .arg("-")
+                    .stdin(wget_process)
+                    .spawn();
+
+                check_process_status("downloaded linux signing key", apt_key_process);
+
+                // echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main"
+                let echo_process_child_result = Command::new("echo")
+                    .arg("deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main")
+                    .stdout(Stdio::piped())
+                    .spawn();
+
+                match echo_process_child_result {
+                    Err(error) => {
+                        println!("error when trying to echo: {}", error);
+                    }
+                    Ok(mut echo_process_child) => {
+                        if let Some(echo_process) = echo_process_child.stdout.take() {
+                            // | sudo tee /etc/apt/sources.list.d/google-chrome.list
+                            let tee_process = Command::new("sudo")
+                                .arg("tee")
+                                .arg("/etc/apt/sources.list.d/google-chrome.list")
+                                .stdin(echo_process)
+                                .spawn();
+
+                            check_process_status("creating repository source file", tee_process);
+
+                            // sudo apt update
+                            let apt_install_process =
+                                Command::new("sudo").arg("apt").arg("update").spawn();
+
+                            check_process_status("updated apt", apt_install_process);
+
+                            // sudo apt install google-chrome-stable
+                            let apt_install_process = Command::new("sudo")
+                                .arg("apt")
+                                .arg("install")
+                                .arg("google-chrome-stable")
+                                .spawn();
+
+                            check_process_status(
+                                "installed tool: google-chrome",
+                                apt_install_process,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn install_node(version: &str) {
     println!("\ninstalling tool: node");
 
@@ -724,6 +799,14 @@ fn target_tools(
                 Some(_git) => {
                     if !can_find_tool("git") {
                         install_git();
+                    }
+                }
+            }
+            match tools.google_chrome {
+                None => {}
+                Some(_google_chrome) => {
+                    if !can_find_tool("google-chrome") {
+                        install_google_chrome();
                     }
                 }
             }
