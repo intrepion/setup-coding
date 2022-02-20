@@ -647,20 +647,6 @@ fn install_node(version: &str) {
     }
 }
 
-fn install_solana(version: &str) {
-    println!("\ninstalling tool: solana");
-
-    let curl_url = format!("$(curl -sSfL https://release.solana.com/v{version}/install)");
-
-    // sh -c "$(curl -sSfL https://release.solana.com/v1.9.7/install)"
-    let sh_process = Command::new("sh")
-        .arg("-c")
-        .arg(&curl_url)
-        .spawn();
-    
-    check_process_status("installed tool: solana", sh_process);
-}
-
 fn install_rustc() {
     println!("\ninstalling tool: rustc");
 
@@ -687,6 +673,20 @@ fn install_rustc() {
             }
         }
     }
+}
+
+fn install_solana(version: &str) {
+    println!("\ninstalling tool: solana");
+
+    let curl_url = format!("$(curl -sSfL https://release.solana.com/v{version}/install)");
+
+    // sh -c "$(curl -sSfL https://release.solana.com/v1.9.7/install)"
+    let sh_process = Command::new("sh")
+        .arg("-c")
+        .arg(&curl_url)
+        .spawn();
+    
+    check_process_status("installed tool: solana", sh_process);
 }
 
 fn main() {
@@ -911,12 +911,15 @@ fn update_dependencies() {
         .arg("clang")
         .arg("curl")
         .arg("gnupg")
+        .arg("libappindicator3-dev")
         .arg("libasound2-dev")
         .arg("libgl1-mesa-dev")
+        .arg("libgtk-3-dev")
         .arg("libpq-dev")
         .arg("libssl-dev")
         .arg("libudev-dev")
         .arg("libwayland-dev")
+        .arg("libwebkit2gtk-4.0-dev")
         .arg("libxi-dev")
         .arg("libx11-dev")
         .arg("libxkbcommon-dev")
