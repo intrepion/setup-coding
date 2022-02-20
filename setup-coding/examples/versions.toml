@@ -3,3 +3,6 @@ version = "1.29.2"
 
 [tools.node]
 version = "17"
+
+[tools.solana]
+version = "1.9.7"

@@ -36,6 +36,11 @@ struct Ssh {
 }
 
 #[derive(Debug, Deserialize)]
+struct Solana {
+    version: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct Tools {
     brave_browser: Option<String>,
     code: Option<String>,
@@ -46,6 +51,7 @@ struct Tools {
     google_chrome: Option<String>,
     node: Option<Node>,
     rustc: Option<String>,
+    solana: Option<Solana>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -641,6 +647,20 @@ fn install_node(version: &str) {
     }
 }
 
+fn install_solana(version: &str) {
+    println!("\ninstalling tool: solana");
+
+    let curl_url = format!("$(curl -sSfL https://release.solana.com/v{version}/install)");
+
+    // sh -c "$(curl -sSfL https://release.solana.com/v1.9.7/install)"
+    let sh_process = Command::new("sh")
+        .arg("-c")
+        .arg(&curl_url)
+        .spawn();
+    
+    check_process_status("installed tool: solana", sh_process);
+}
+
 fn install_rustc() {
     println!("\ninstalling tool: rustc");
 
@@ -823,6 +843,14 @@ fn target_tools(
                 Some(_rustc) => {
                     if !can_find_tool("rustc") {
                         install_rustc();
+                    }
+                }
+            }
+            match tools.solana {
+                None => {}
+                Some(solana) => {
+                    if !can_find_tool("solana") {
+                        install_solana(&solana.version);
                     }
                 }
             }
