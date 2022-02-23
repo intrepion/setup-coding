@@ -930,6 +930,7 @@ fn update_dependencies() {
         .arg("musl-tools")
         .arg("pkg-config")
         .arg("postgresql-client")
+        .arg("python")
         .spawn();
 
     check_process_status("installed dependencies", apt_install_dependencies_process);
