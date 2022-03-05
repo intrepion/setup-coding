@@ -44,6 +44,7 @@ struct Solana {
 struct Tools {
     brave_browser: Option<String>,
     code: Option<String>,
+    codecov: Option<String>,
     docker: Option<String>,
     docker_compose: Option<DockerCompose>,
     gh: Option<String>,
@@ -335,6 +336,37 @@ fn install_code() {
         .spawn();
 
     check_process_status("installed tool: code", process);
+}
+
+fn install_codecov() {
+    println!("\ninstalling tool: codecov");
+
+    // curl -Os https://uploader.codecov.io/latest/linux/codecov
+    let curl_process = Command::new("curl")
+        .arg("-Os")
+        .arg("https://uploader.codecov.io/latest/linux/codecov")
+        .arg("-o")
+        .arg("/usr/local/bin/codecov")
+        .spawn();
+
+    check_process_status("downloaded codecov", curl_process);
+
+    // chmod +x codecov
+    let chmod_process = Command::new("chmod")
+        .arg("+x")
+        .arg("codecov")
+        .spawn();
+
+    check_process_status("made codecov executable by current user", chmod_process);
+
+    // mv codecov /usr/local/bin/codecov
+    let mv_process = Command::new("sudo")
+        .arg("mv")
+        .arg("codecov")
+        .arg("/usr/local/bin/codecov")
+        .spawn();
+    
+    check_process_status("installed tool: codecov", mv_process);
 }
 
 fn install_docker(architecture_name: &str, release_name: &str) {
@@ -783,6 +815,14 @@ fn target_tools(
                 Some(_code) => {
                     if !can_find_tool("code") {
                         install_code();
+                    }
+                }
+            }
+            match tools.codecov {
+                None => {}
+                Some(_codecov) => {
+                    if !can_find_tool("codecov") {
+                        install_codecov();
                     }
                 }
             }
