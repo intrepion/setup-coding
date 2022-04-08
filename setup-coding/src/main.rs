@@ -941,7 +941,7 @@ fn update_system() {
 }
 
 fn update_dependencies() {
-    // sudo apt install apt-transport-https build-essential ca-certificates curl gnupg lsb-release
+    // sudo apt install apt-transport-https build-essential ca-certificates clang cmake curl gnupg libappindicator3-dev libasound2-dev libgl1-mesa-dev libgtk-3-dev libpq-dev libssl-dev libudev-dev libvulkan-dev libwayland-dev libwebkit2gtk.0-dev libx11-dev libxi-dev libxcb-xfixes0-dev libxcb-shape0-dev libxkbcommon-dev lld lsb-release musl-tools nginx pkg-config postgresql-client python
     let apt_install_dependencies_process = Command::new("sudo")
         .arg("apt")
         .arg("install")
@@ -970,6 +970,7 @@ fn update_dependencies() {
         .arg("lld")
         .arg("lsb-release")
         .arg("musl-tools")
+        .arg("nginx")
         .arg("pkg-config")
         .arg("postgresql-client")
         .arg("python")
