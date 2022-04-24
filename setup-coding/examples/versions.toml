@@ -2,7 +2,7 @@
 version = "1.29.2"
 
 [tools.node]
-version = "17"
+version = "18.0.0"
 
 [tools.solana]
-version = "1.9.7"
+version = "1.10.8"

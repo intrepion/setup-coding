@@ -2,6 +2,7 @@ use serde_derive::Deserialize;
 use std::env;
 use std::fs;
 use std::io::Error;
+use std::io::Read;
 use std::process;
 use std::process::{Child, Command, Output, Stdio};
 use std::string::FromUtf8Error;
@@ -63,18 +64,30 @@ struct Updates {
 }
 
 fn can_find_tool(tool_name: &str) -> bool {
-    println!("\nchecking for tool: {}", tool_name);
+    println!("\nchecking for tool: {tool_name}");
     let process = Command::new(tool_name).arg("--version").spawn();
 
-    let message = format!("found tool: {}", tool_name);
+    let message = format!("found tool: {tool_name}");
 
     check_process_status(&message, process)
+}
+
+fn can_find_version(tool_name: &str, version: &str) -> bool {
+    println!("\nchecking for tool and version: {tool_name} {version}");
+    let process = Command::new(tool_name)
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .spawn();
+
+    let message = format!("found tool and version: {tool_name} {version}");
+
+    check_process_version(&message, process, version)
 }
 
 fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     match process {
         Err(error) => {
-            println!("process error message: {}", error);
+            println!("process error message: {error}");
 
             false
         }
@@ -83,13 +96,13 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
 
             match exit_status {
                 Err(error) => {
-                    println!("exit status error message: {}", error);
+                    println!("exit status error message: {error}");
 
                     false
                 }
                 Ok(status) => {
-                    println!("process status: {}", status);
-                    println!("{}", message);
+                    println!("process status: {status}");
+                    println!("{message}");
 
                     true
                 }
@@ -98,15 +111,60 @@ fn check_process_status(message: &str, process: Result<Child, Error>) -> bool {
     }
 }
 
+fn check_process_version(message: &str, process: Result<Child, Error>, version: &str) -> bool {
+    match process {
+        Err(error) => {
+            println!("process error message: {error}");
+
+            false
+        }
+        Ok(mut child) => match child.wait() {
+            Ok(status) => match child.stdout.take() {
+                Some(ref mut stdout) => {
+                    let mut buf_string = String::new();
+                    match stdout.read_to_string(&mut buf_string) {
+                        Ok(_) => {
+                            println!("read string: {buf_string}");
+                            println!("process status: {status}");
+
+                            if buf_string.contains(version) {
+                                println!("{message}");
+
+                                true
+                            } else {
+                                println!("not {message}");
+
+                                false
+                            }
+                        }
+                        Err(_) => {
+                            println!("Could not read string");
+
+                            false
+                        }
+                    }
+                }
+                None => {
+                    println!("No output");
+
+                    false
+                }
+            },
+            Err(_) => {
+                println!("process failed");
+
+                false
+            }
+        },
+    }
+}
+
 fn convert_output_to_string(process_child_stdout: Output) -> Result<String, FromUtf8Error> {
     let architecture_name_result = String::from_utf8(process_child_stdout.stdout);
 
     match architecture_name_result {
         Err(error) => {
-            println!(
-                "error when trying to convert string from dpkg output: {}",
-                error
-            );
+            println!("error when trying to convert string from dpkg output: {error}");
 
             Err(error)
         }
@@ -132,7 +190,7 @@ fn generate_new_ssh_key(algorithm: &str, email: &str, title: &str) {
 
     check_process_status("started the ssh agent", eval_process);
 
-    let ssh_directory = format!("~/.ssh/{}", algorithm);
+    let ssh_directory = format!("~/.ssh/{algorithm}");
 
     // sh-add ~/.ssh/id_ed25519
     let ssh_add_process = Command::new("ssh-add").arg(&ssh_directory).spawn();
@@ -162,7 +220,7 @@ fn get_architecture_name_output() -> Result<Output, Error> {
 
     match dpkg_process_child_result {
         Err(error) => {
-            println!("error when trying to dpkg: {}", error);
+            println!("error when trying to dpkg: {error}");
 
             Err(error)
         }
@@ -171,7 +229,7 @@ fn get_architecture_name_output() -> Result<Output, Error> {
 
             match dpkg_process_child_stdout_result {
                 Err(error) => {
-                    println!("error when trying to dpkg: {}", error);
+                    println!("error when trying to dpkg: {error}");
 
                     Err(error)
                 }
@@ -192,7 +250,7 @@ fn get_kernel_name_output() -> Result<Output, Error> {
 
     match uname_process_child_result {
         Err(error) => {
-            println!("error when trying to uname: {}", error);
+            println!("error when trying to uname: {error}");
 
             Err(error)
         }
@@ -201,7 +259,7 @@ fn get_kernel_name_output() -> Result<Output, Error> {
 
             match uname_process_child_stdout_result {
                 Err(error) => {
-                    println!("error when trying to get output of uname: {}", error);
+                    println!("error when trying to get output of uname: {error}");
 
                     Err(error)
                 }
@@ -222,7 +280,7 @@ fn get_machine_hardware_name_output() -> Result<Output, Error> {
 
     match uname_process_child_result {
         Err(error) => {
-            println!("error when trying to uname: {}", error);
+            println!("error when trying to uname: {error}");
 
             Err(error)
         }
@@ -231,7 +289,7 @@ fn get_machine_hardware_name_output() -> Result<Output, Error> {
 
             match uname_process_child_stdout_result {
                 Err(error) => {
-                    println!("error when trying to get output of uname: {}", error);
+                    println!("error when trying to get output of uname: {error}");
 
                     Err(error)
                 }
@@ -252,7 +310,7 @@ fn get_release_name_output() -> Result<Output, Error> {
 
     match lsb_release_process_child_result {
         Err(error) => {
-            println!("error when trying to lsb_release: {}", error);
+            println!("error when trying to lsb_release: {error}");
 
             Err(error)
         }
@@ -262,7 +320,7 @@ fn get_release_name_output() -> Result<Output, Error> {
 
             match lsb_release_process_child_stdout_result {
                 Err(error) => {
-                    println!("error when trying to get output of lsb_release: {}", error);
+                    println!("error when trying to get output of lsb_release: {error}");
 
                     Err(error)
                 }
@@ -293,7 +351,7 @@ fn install_brave_browser() {
 
     match echo_process_child_result {
         Err(error) => {
-            println!("could not install brave-browser: {}", error);
+            println!("could not install brave-browser: {error}");
         }
         Ok(mut echo_process_child) => {
             if let Some(echo_process) = echo_process_child.stdout.take() {
@@ -352,10 +410,7 @@ fn install_codecov() {
     check_process_status("downloaded codecov", curl_process);
 
     // chmod +x codecov
-    let chmod_process = Command::new("chmod")
-        .arg("+x")
-        .arg("codecov")
-        .spawn();
+    let chmod_process = Command::new("chmod").arg("+x").arg("codecov").spawn();
 
     check_process_status("made codecov executable by current user", chmod_process);
 
@@ -365,7 +420,7 @@ fn install_codecov() {
         .arg("codecov")
         .arg("/usr/local/bin/codecov")
         .spawn();
-    
+
     check_process_status("installed tool: codecov", mv_process);
 }
 
@@ -381,7 +436,7 @@ fn install_docker(architecture_name: &str, release_name: &str) {
 
     match curl_process_child_result {
         Err(error) => {
-            println!("error when trying to download: {}", error);
+            println!("error when trying to download: {error}");
         }
         Ok(mut curl_process_child) => {
             if let Some(curl_process) = curl_process_child.stdout.take() {
@@ -406,7 +461,7 @@ fn install_docker(architecture_name: &str, release_name: &str) {
 
                 match echo_process_child_result {
                     Err(error) => {
-                        println!("error when processing echo: {}", error);
+                        println!("error when processing echo: {error}");
                     }
                     Ok(mut echo_process_child) => {
                         if let Some(echo_process) = echo_process_child.stdout.take() {
@@ -441,8 +496,7 @@ fn install_docker_compose(_version: &str, kernel_name: &str, machine_hardware_na
     println!("\ninstalling tool: docker-compose");
 
     let github_url = format!(
-        "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-{}-{}",
-        kernel_name, machine_hardware_name
+        "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-{kernel_name}-{machine_hardware_name}",
     );
 
     // sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -487,7 +541,7 @@ fn install_gh(architecture_name: &str) {
 
     match curl_process_child_result {
         Err(error) => {
-            println!("error when trying to curl: {}", error);
+            println!("error when trying to curl: {error}");
         }
         Ok(mut curl_process_child) => {
             if let Some(curl_process) = curl_process_child.stdout.take() {
@@ -500,7 +554,7 @@ fn install_gh(architecture_name: &str) {
 
                 check_process_status("downloading gpg file", dd_process);
 
-                let echo_argument = format!("deb [arch={} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main", architecture_name);
+                let echo_argument = format!("deb [arch={architecture_name} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main");
 
                 // echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
                 let echo_process_child_result = Command::new("echo")
@@ -510,7 +564,7 @@ fn install_gh(architecture_name: &str) {
 
                 match echo_process_child_result {
                     Err(error) => {
-                        println!("error when trying to echo: {}", error);
+                        println!("error when trying to echo: {error}");
                     }
                     Ok(mut echo_process_child) => {
                         if let Some(echo_process) = echo_process_child.stdout.take() {
@@ -577,7 +631,7 @@ fn install_google_chrome() {
 
     match wget_process_child_result {
         Err(error) => {
-            println!("error when trying to download: {}", error);
+            println!("error when trying to download: {error}");
         }
         Ok(mut wget_process_child) => {
             if let Some(wget_process) = wget_process_child.stdout.take() {
@@ -599,7 +653,7 @@ fn install_google_chrome() {
 
                 match echo_process_child_result {
                     Err(error) => {
-                        println!("error when trying to echo: {}", error);
+                        println!("error when trying to echo: {error}");
                     }
                     Ok(mut echo_process_child) => {
                         if let Some(echo_process) = echo_process_child.stdout.take() {
@@ -640,7 +694,7 @@ fn install_google_chrome() {
 fn install_node(version: &str) {
     println!("\ninstalling tool: node");
 
-    let package_url = format!("https://deb.nodesource.com/setup_{}.x", version);
+    let package_url = format!("https://deb.nodesource.com/setup_{version}.x");
 
     // curl -fsSL https://deb.nodesource.com/setup_17.x
     let curl_process_child_result = Command::new("curl")
@@ -651,7 +705,7 @@ fn install_node(version: &str) {
 
     match curl_process_child_result {
         Err(error) => {
-            println!("error trying to curl: {}", error);
+            println!("error trying to curl: {error}");
         }
         Ok(mut curl_process_child) => {
             if let Some(curl_process) = curl_process_child.stdout.take() {
@@ -694,7 +748,7 @@ fn install_rustc() {
 
     match curl_process_child_result {
         Err(error) => {
-            println!("error trying to curl: {}", error);
+            println!("error trying to curl: {error}");
         }
         Ok(mut curl_process_child) => {
             if let Some(curl_process) = curl_process_child.stdout.take() {
@@ -710,15 +764,28 @@ fn install_rustc() {
 fn install_solana(version: &str) {
     println!("\ninstalling tool: solana");
 
-    let curl_url = format!("$(curl -sSfL https://release.solana.com/v{version}/install)");
+    let curl_url = format!("https://release.solana.com/v{version}/install");
 
-    // sh -c "$(curl -sSfL https://release.solana.com/v1.9.7/install)"
-    let sh_process = Command::new("sh")
-        .arg("-c")
+    // curl -sSfL https://release.solana.com/v1.9.7/install
+    let curl_process_child_result = Command::new("curl")
+        .arg("-sSfL")
         .arg(&curl_url)
+        .stdout(Stdio::piped())
         .spawn();
-    
-    check_process_status("installed tool: solana", sh_process);
+
+    match curl_process_child_result {
+        Err(error) => {
+            println!("error trying to curl: {error}");
+        }
+        Ok(mut curl_process_child) => {
+            if let Some(curl_process) = curl_process_child.stdout.take() {
+                // | sh -c
+                let sh_process = Command::new("sh").stdin(curl_process).spawn();
+
+                check_process_status("installed tool: rustc", sh_process);
+            }
+        }
+    }
 }
 
 fn main() {
@@ -733,7 +800,7 @@ fn main() {
 
     let filename = &args[1];
 
-    println!("\nreading file: {}", filename);
+    println!("\nreading file: {filename}");
 
     let contents = fs::read_to_string(filename).expect("couldn't read file");
 
@@ -837,7 +904,7 @@ fn target_tools(
             match tools.docker_compose {
                 None => {}
                 Some(docker_compose) => {
-                    if !can_find_tool("docker-compose") {
+                    if !can_find_version("docker-compose", &docker_compose.version) {
                         install_docker_compose(
                             &docker_compose.version,
                             &kernel_name,
@@ -873,7 +940,7 @@ fn target_tools(
             match tools.node {
                 None => {}
                 Some(node) => {
-                    if !can_find_tool("node") {
+                    if !can_find_version("node", &node.version) {
                         install_node(&node.version);
                     }
                 }
@@ -889,7 +956,7 @@ fn target_tools(
             match tools.solana {
                 None => {}
                 Some(solana) => {
-                    if !can_find_tool("solana") {
+                    if !can_find_version("solana", &solana.version) {
                         install_solana(&solana.version);
                     }
                 }
